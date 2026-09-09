@@ -1,0 +1,8 @@
+{
+  "plugins": ["import"],
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-empty": "warn"
+  },
+  "ignore": ["node_modules", "dist", "out", "build"]
+}

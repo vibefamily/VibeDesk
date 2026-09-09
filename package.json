@@ -1,0 +1,27 @@
+{
+  "name": "vibe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vibe - Local-first AI trading agent desktop application",
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @vibe/desktop dev",
+    "dev:cli": "pnpm --filter @vibe/cli dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "oxlint",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "oxlint": "^0.9.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0"
+  }
+}

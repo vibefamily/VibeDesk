@@ -1,0 +1,30 @@
+{
+  "name": "@vibe/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Core trading logic for Vibe - market data, execution, wallet, risk, portfolio",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./market": "./src/market/index.ts",
+    "./execution": "./src/execution/index.ts",
+    "./wallet": "./src/wallet/index.ts",
+    "./risk": "./src/risk/index.ts",
+    "./portfolio": "./src/portfolio/index.ts",
+    "./events": "./src/events/index.ts",
+    "./config": "./src/config/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@vibe/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
