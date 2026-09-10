@@ -1,0 +1,36 @@
+{
+  "name": "@vibe/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vibe Desktop - AI trading agent desktop application (Electron + React)",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build && electron-builder",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@vibe/core": "workspace:*",
+    "@vibe/shared": "workspace:*",
+    "@vibe/strategy-engine": "workspace:*",
+    "@vibe/data-sources": "workspace:*",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vite-plugin-electron": "^0.28.0",
+    "vite-plugin-electron-renderer": "^0.14.0"
+  }
+}
