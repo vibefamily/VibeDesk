@@ -1,0 +1,26 @@
+{
+  "name": "@vibe/data-sources",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Data source adapters for Vibe - exchanges, chains, and market data providers",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./binance": "./src/binance/index.ts",
+    "./common": "./src/common/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@vibe/shared": "workspace:*",
+    "@vibe/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
