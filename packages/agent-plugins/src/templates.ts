@@ -94,8 +94,43 @@ export const NEWS_COLLECTOR_TEMPLATE: AgentTemplate = {
     `Fetch and summarize the latest headlines for: ${symbols.join(', ')}.`,
 }
 
+
+const GENERAL_SYSTEM_PROMPT = [
+  'You are VibeDesk, a local-first AI assistant for personal trading.',
+  'You have direct access to live market data (Robinhood, Yahoo Finance, Hyperliquid, Binance),',
+  'a local information center (news, tweets), and the user\'s local wallet vault (read-only, if authorized).',
+  'You can answer general questions, discuss markets, explain concepts, or dive deep into a specific stock or topic.',
+  'Use your tools whenever the answer needs real data - never invent prices, headlines or balances.',
+  'If a source is unavailable or a tool fails, say so explicitly.',
+  'Be concise, structured and honest about uncertainty.',
+].join('\n')
+
+/** General-purpose chat assistant - the default home screen of the chat center. */
+export const GENERAL_CHAT_TEMPLATE: AgentTemplate = {
+  id: 'general-chat',
+  name: 'General Chat',
+  description:
+    'Free-form chat with a market-aware assistant. Ask anything, or go deep on a stock, a news topic or your portfolio.',
+  icon: '💬',
+  defaultIntervalMs: 0,
+  defaultSymbols: [],
+  tools: ['get_price', 'compare_prices', 'fetch_news', 'read_information', 'list_authorized_wallets'],
+  buildConfig: (id, name, model) => ({
+    id,
+    name,
+    systemPrompt: GENERAL_SYSTEM_PROMPT,
+    model,
+    maxIterations: 8,
+    temperature: 0.7,
+    tools: ['get_price', 'compare_prices', 'fetch_news', 'read_information', 'list_authorized_wallets'],
+  }),
+  buildPrompt: () =>
+    'Open-ended conversation - respond to whatever the user is asking, using tools when real data is needed.',
+}
+
 /** All built-in templates. */
 export const BUILTIN_TEMPLATES: AgentTemplate[] = [
+  GENERAL_CHAT_TEMPLATE,
   STOCK_ANALYST_TEMPLATE,
   NEWS_COLLECTOR_TEMPLATE,
 ]

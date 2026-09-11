@@ -9,6 +9,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMarketStore } from '../stores/marketStore'
+import { useWindowStore } from '../components/95/windowStore'
 import { DEFAULT_STOCK_TICKERS, STOCK_TICKER_NAMES } from '@vibe/shared'
 
 const fmtPrice = (v: number | undefined): string =>
@@ -161,7 +162,19 @@ const StockTokens: React.FC = () => {
           <button style={{ ...winBtn, color: '#a00' }} onClick={() => undefined} title="P1 feature">
             Sell {selected.symbol}
           </button>
-          <button style={{ ...winBtn, fontWeight: 700 }} onClick={() => undefined} title="Agent analysis (P1)">
+          <button
+            style={{ ...winBtn, fontWeight: 700 }}
+            onClick={() => {
+              useWindowStore.getState().setChatIntent({
+                templateId: 'stock-analyst',
+                title: `${selected.symbol} Analyst`,
+                symbols: [selected.symbol],
+                question: `Analyze ${selected.symbol} right now: fetch live prices across all sources, compare them, note the cross-source spread, and give a recommendation with reasons and risks.`,
+              })
+              useWindowStore.getState().openWindow('chat-center', 'Chat Center', '💬')
+            }}
+            title="Ask the AI agent to analyze this stock in Chat Center"
+          >
             Ask AI
           </button>
         </div>

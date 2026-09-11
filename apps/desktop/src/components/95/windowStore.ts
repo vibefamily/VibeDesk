@@ -26,6 +26,13 @@ export interface WindowState {
   originalHeight: number
 }
 
+export interface ChatIntent {
+  templateId: string
+  title?: string
+  symbols?: string[]
+  question?: string
+}
+
 interface WindowStore {
   windows: WindowState[]
   nextZIndex: number
@@ -46,6 +53,9 @@ interface WindowStore {
   updateWindowPosition: (id: string, x: number, y: number) => void
   updateWindowSize: (id: string, width: number, height: number) => void
   openWindow: (component: string, title: string, icon: string) => void
+  chatIntent: ChatIntent | null
+  setChatIntent: (intent: ChatIntent) => void
+  consumeChatIntent: () => void
 }
 
 let windowSeq = 0
@@ -162,4 +172,10 @@ export const useWindowStore = create<WindowStore>((set) => ({
     })
     void nextZIndex
   },
+
+  chatIntent: null,
+
+  setChatIntent: (intent) => set({ chatIntent: intent }),
+
+  consumeChatIntent: () => set({ chatIntent: null }),
 }))

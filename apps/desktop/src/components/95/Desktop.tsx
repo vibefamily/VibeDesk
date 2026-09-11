@@ -13,6 +13,7 @@ import { useWindowStore } from './windowStore'
 
 /** Desktop icons: the four core product modules. */
 const DESKTOP_ICONS = [
+  { key: 'chat-center', label: 'Chat Center', icon: '💬', hint: 'Talk to your AI agent - default home' },
   { key: 'stock-tokens', label: 'Trade Center', icon: '📈', hint: 'Multi-source real-time prices & spread' },
   { key: 'agents', label: 'AI Agents', icon: '🤖', hint: 'Agent analysis & skills' },
   { key: 'wallets', label: 'Wallet Manager', icon: '👛', hint: 'Local encrypted multi-wallet vault' },

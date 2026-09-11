@@ -13,6 +13,7 @@ import Agents from '../../views/Agents'
 import Wallets from '../../views/Wallets'
 import DataSources from '../../views/DataSources'
 import Settings from '../../views/Settings'
+import ChatCenter from '../../views/ChatCenter'
 import InfoCenter from '../../views/InfoCenter'
 import Dashboard from '../../views/Dashboard'
 import Strategies from '../../views/Strategies'
@@ -21,6 +22,7 @@ import Portfolio from '../../views/Portfolio'
 const WINDOW_COMPONENTS: Record<string, React.FC> = {
   'stock-tokens': StockTokens,
   agents: Agents,
+  'chat-center': ChatCenter,
   wallets: Wallets,
   data: DataSources,
   settings: Settings,

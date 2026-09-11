@@ -83,10 +83,11 @@ describe('AgentManager', () => {
   it('registers the built-in templates', () => {
     const manager = new AgentManager({ market: makeMarket() })
     expect(manager.listTemplates().map((t) => t.id).sort()).toEqual([
+      'general-chat',
       'news-collector',
       'stock-analyst',
     ])
-    expect(BUILTIN_TEMPLATES).toHaveLength(2)
+    expect(BUILTIN_TEMPLATES).toHaveLength(3)
   })
 
   it('runs a stock analyst in rule mode and records output', async () => {
