@@ -1,75 +1,95 @@
 /**
- * Stock Tokens view - cross-chain stock token price comparison and arbitrage.
+ * Stock Tokens view - multi-source stock price comparison.
  *
- * This is the key use case for the hackathon: showing the same stock token
- * on different chains, with price differences and arbitrage opportunities.
+ * The core showcase screen: pick a stock ticker, see live prices from
+ * every registered data source side by side (Robinhood, Yahoo Finance,
+ * Hyperliquid, Binance), with cross-source spread, unavailable-source
+ * fallback and placeholder trading / AI actions.
+ *
+ * All prices are real data from the public endpoints; sources that do
+ * not list the asset render as "Unavailable".
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { DEFAULT_STOCK_TICKERS, STOCK_TICKER_NAMES } from '@vibe/shared'
+import type { TickData } from '@vibe/shared'
+import { useMarketStore } from '../stores/marketStore'
 
-interface StockTokenInfo {
-  ticker: string
+const KIND_LABEL: Record<string, string> = {
+  broker: 'Broker',
+  aggregator: 'Aggregator',
+  dex: 'DEX',
+  cex: 'CEX',
+  chain: 'Chain',
+}
+
+const KIND_COLOR: Record<string, string> = {
+  broker: '#58a6ff',
+  aggregator: '#d29922',
+  dex: '#bc8cff',
+  cex: '#f85149',
+  chain: '#3fb950',
+}
+
+interface SourceCard {
+  id: string
   name: string
-  chains: {
-    chain: string
-    dex: string
-    price: number
-    change24h: number
-    volume24h: number
-    tvl: number
-  }[]
+  kind: string
+  updateMode: string[]
+  tick?: TickData
+  unavailable: boolean
 }
 
 const StockTokens: React.FC = () => {
-  const [selectedTicker, setSelectedTicker] = useState<string>('TSLA')
+  const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_STOCK_TICKERS[0] ?? 'TSLA')
+  const { ready, error, registry, ticks, unavailable, init, refreshSymbol } = useMarketStore()
 
-  const stocks: StockTokenInfo[] = [
-    {
-      ticker: 'TSLA',
-      name: 'Tesla Inc.',
-      chains: [
-        { chain: 'Solana', dex: 'Jupiter', price: 245.32, change24h: 2.34, volume24h: 1250000, tvl: 45000000 },
-        { chain: 'Base', dex: 'Uniswap V3', price: 247.18, change24h: 1.87, volume24h: 890000, tvl: 32000000 },
-        { chain: 'Arbitrum', dex: 'GMX', price: 244.85, change24h: 2.56, volume24h: 560000, tvl: 28000000 },
-      ],
-    },
-    {
-      ticker: 'AAPL',
-      name: 'Apple Inc.',
-      chains: [
-        { chain: 'Solana', dex: 'Jupiter', price: 189.45, change24h: -0.23, volume24h: 980000, tvl: 38000000 },
-        { chain: 'Base', dex: 'Uniswap V3', price: 190.12, change24h: -0.15, volume24h: 720000, tvl: 25000000 },
-      ],
-    },
-    {
-      ticker: 'NVDA',
-      name: 'NVIDIA Corp.',
-      chains: [
-        { chain: 'Solana', dex: 'Jupiter', price: 118.65, change24h: 3.42, volume24h: 2100000, tvl: 52000000 },
-        { chain: 'Base', dex: 'Uniswap V3', price: 120.34, change24h: 2.98, volume24h: 1450000, tvl: 36000000 },
-        { chain: 'Arbitrum', dex: 'GMX', price: 117.92, change24h: 3.76, volume24h: 780000, tvl: 22000000 },
-        { chain: 'Sui', dex: 'DeepBook', price: 119.48, change24h: 3.21, volume24h: 340000, tvl: 12000000 },
-      ],
-    },
-  ]
+  useEffect(() => {
+    void init()
+  }, [init])
 
-  const selectedStock = stocks.find((s) => s.ticker === selectedTicker)!
+  useEffect(() => {
+    void refreshSymbol(selectedTicker)
+  }, [selectedTicker, refreshSymbol])
 
-  // Calculate spread
-  const prices = selectedStock.chains.map((c) => c.price)
-  const minPrice = Math.min(...prices)
-  const maxPrice = Math.max(...prices)
-  const spread = maxPrice - minPrice
-  const spreadPercent = (spread / minPrice) * 100
+  const sources = useMemo<SourceCard[]>(() => {
+    if (!registry) {
+      return []
+    }
+    const symbolTicks = ticks[selectedTicker] ?? {}
+    const symbolUnavailable = unavailable[selectedTicker] ?? []
+    return registry.list().map(({ manifest }) => ({
+      id: manifest.id,
+      name: manifest.name,
+      kind: manifest.kind,
+      updateMode: manifest.updateMode,
+      tick: symbolTicks[manifest.id],
+      unavailable: symbolUnavailable.includes(manifest.id) && !symbolTicks[manifest.id],
+    }))
+  }, [registry, ticks, unavailable, selectedTicker])
+
+  const pricedSources = sources.filter((s) => s.tick)
+  const minTick = pricedSources.reduce<TickData | null>(
+    (min, s) => (min === null || (s.tick!.lastPrice < min.lastPrice) ? s.tick! : min),
+    null,
+  )
+  const maxTick = pricedSources.reduce<TickData | null>(
+    (max, s) => (max === null || (s.tick!.lastPrice > max.lastPrice) ? s.tick! : max),
+    null,
+  )
+  const spread = minTick && maxTick ? maxTick.lastPrice - minTick.lastPrice : 0
+  const spreadPct = minTick && minTick.lastPrice > 0 ? (spread / minTick.lastPrice) * 100 : 0
+
+  const selectedName = STOCK_TICKER_NAMES[selectedTicker] ?? selectedTicker
 
   return (
     <div style={{ padding: 'var(--space-xl)' }}>
       <div style={{ marginBottom: 'var(--space-xl)' }}>
         <h1 style={{ fontSize: 'var(--font-2xl)', margin: 0, marginBottom: 'var(--space-xs)' }}>
-          Stock Tokens
+          Stock Prices
         </h1>
         <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-          Cross-chain stock token prices and arbitrage opportunities.
+          Live prices for the same stock across multiple data sources. Spread = opportunity.
         </p>
       </div>
 
@@ -80,29 +100,31 @@ const StockTokens: React.FC = () => {
           gap: 'var(--space-sm)',
           marginBottom: 'var(--space-xl)',
           borderBottom: '1px solid var(--color-border)',
+          overflowX: 'auto',
         }}
       >
-        {stocks.map((stock) => (
+        {DEFAULT_STOCK_TICKERS.map((ticker) => (
           <button
-            key={stock.ticker}
-            onClick={() => setSelectedTicker(stock.ticker)}
+            key={ticker}
+            onClick={() => setSelectedTicker(ticker)}
             style={{
               padding: 'var(--space-md) var(--space-lg)',
               backgroundColor: 'transparent',
               border: 'none',
-              borderBottom: selectedTicker === stock.ticker
+              borderBottom: selectedTicker === ticker
                 ? '2px solid var(--color-accent)'
                 : '2px solid transparent',
-              color: selectedTicker === stock.ticker
+              color: selectedTicker === ticker
                 ? 'var(--color-text-primary)'
                 : 'var(--color-text-secondary)',
               fontSize: 'var(--font-md)',
               fontWeight: 600,
               cursor: 'pointer',
               marginBottom: -1,
+              whiteSpace: 'nowrap',
             }}
           >
-            {stock.ticker}
+            {ticker}
           </button>
         ))}
       </div>
@@ -114,52 +136,80 @@ const StockTokens: React.FC = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 'var(--space-xl)',
+          flexWrap: 'wrap',
+          gap: 'var(--space-md)',
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: 'var(--font-xl)' }}>{selectedStock.ticker}</h2>
-          <p style={{ margin: 0, color: 'var(--color-text-secondary)' }}>{selectedStock.name}</p>
+          <h2 style={{ margin: 0, fontSize: 'var(--font-xl)' }}>{selectedTicker}</h2>
+          <p style={{ margin: 0, color: 'var(--color-text-secondary)' }}>{selectedName}</p>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>
-            Cross-Chain Spread
+            Cross-Source Spread ({pricedSources.length} sources)
           </div>
           <div style={{ fontSize: 'var(--font-2xl)', fontWeight: 700, color: 'var(--color-warning)' }}>
-            ${spread.toFixed(2)} ({spreadPercent.toFixed(2)}%)
+            ${spread.toFixed(2)} ({spreadPct.toFixed(3)}%)
           </div>
         </div>
       </div>
 
-      {/* Chain price cards */}
+      {error && (
+        <div
+          style={{
+            backgroundColor: 'rgba(248, 81, 73, 0.1)',
+            border: '1px solid var(--color-danger)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-md)',
+            marginBottom: 'var(--space-lg)',
+            color: 'var(--color-danger)',
+            fontSize: 'var(--font-sm)',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {!ready && (
+        <div style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-md)' }}>
+          Connecting to data sources...
+        </div>
+      )}
+
+      {/* Source price cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${Math.min(selectedStock.chains.length, 4)}, 1fr)`,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
           gap: 'var(--space-lg)',
           marginBottom: 'var(--space-xl)',
         }}
       >
-        {selectedStock.chains.map((chain, idx) => {
-          const isLowest = chain.price === minPrice
-          const isHighest = chain.price === maxPrice
+        {sources.map((source) => {
+          const isLowest = source.tick && minTick && source.tick.lastPrice === minTick.lastPrice
+          const isHighest = source.tick && maxTick && source.tick.lastPrice === maxTick.lastPrice
+          const live = source.updateMode.includes('ws')
           return (
             <div
-              key={chain.chain}
+              key={source.id}
               style={{
                 backgroundColor: 'var(--color-bg-secondary)',
                 border: `1px solid ${
-                  isLowest
-                    ? 'var(--color-success)'
-                    : isHighest
-                      ? 'var(--color-danger)'
-                      : 'var(--color-border)'
+                  source.unavailable
+                    ? 'var(--color-border)'
+                    : isLowest
+                      ? 'var(--color-success)'
+                      : isHighest
+                        ? 'var(--color-danger)'
+                        : 'var(--color-border)'
                 }`,
                 borderRadius: 'var(--radius-lg)',
                 padding: 'var(--space-lg)',
                 position: 'relative',
+                opacity: source.unavailable ? 0.6 : 1,
               }}
             >
-              {isLowest && (
+              {isLowest && !source.unavailable && (
                 <div
                   style={{
                     position: 'absolute',
@@ -176,7 +226,7 @@ const StockTokens: React.FC = () => {
                   LOWEST
                 </div>
               )}
-              {isHighest && (
+              {isHighest && !source.unavailable && (
                 <div
                   style={{
                     position: 'absolute',
@@ -194,115 +244,187 @@ const StockTokens: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-                <span style={{ fontSize: 'var(--font-lg)' }}>
-                  {chain.chain === 'Solana' && '🟣'}
-                  {chain.chain === 'Base' && '🔵'}
-                  {chain.chain === 'Arbitrum' && '🔷'}
-                  {chain.chain === 'Sui' && '🟢'}
-                </span>
-                <div>
-                  <div style={{ fontWeight: 600 }}>{chain.chain}</div>
-                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-muted)' }}>
-                    {chain.dex}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ fontSize: 'var(--font-2xl)', fontWeight: 700, fontFamily: 'monospace' }}>
-                ${chain.price.toFixed(2)}
-              </div>
               <div
                 style={{
-                  fontSize: 'var(--font-sm)',
-                  color: chain.change24h >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
-                  marginTop: 'var(--space-xs)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 'var(--space-md)',
                 }}
               >
-                {chain.change24h >= 0 ? '▲' : '▼'} {Math.abs(chain.change24h).toFixed(2)}%
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      backgroundColor: source.unavailable ? 'var(--color-text-muted)' : live ? 'var(--color-success)' : 'var(--color-warning)',
+                      display: 'inline-block',
+                    }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{source.name}</div>
+                    <div
+                      style={{
+                        fontSize: 'var(--font-xs)',
+                        color: KIND_COLOR[source.kind] ?? 'var(--color-text-secondary)',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {KIND_LABEL[source.kind] ?? source.kind}
+                    </div>
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: 'var(--font-xs)',
+                    color: 'var(--color-text-muted)',
+                    backgroundColor: 'var(--color-bg-tertiary)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '2px 6px',
+                  }}
+                >
+                  {source.updateMode.includes('ws') ? 'WS' : source.updateMode.includes('polling') ? 'POLL' : 'REST'}
+                </span>
               </div>
 
-              <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border-light)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-sm)' }}>
-                  <span className="text-muted">24h Vol</span>
-                  <span style={{ fontFamily: 'monospace' }}>${(chain.volume24h / 1000).toFixed(0)}K</span>
+              {source.tick ? (
+                <>
+                  <div
+                    style={{
+                      fontSize: 'var(--font-2xl)',
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    ${source.tick.lastPrice.toFixed(2)}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 'var(--font-sm)',
+                      color:
+                        (source.tick.change24h ?? 0) >= 0
+                          ? 'var(--color-success)'
+                          : 'var(--color-danger)',
+                      marginTop: 'var(--space-xs)',
+                    }}
+                  >
+                    {(source.tick.change24h ?? 0) >= 0 ? '▲' : '▼'}{' '}
+                    {Math.abs((source.tick.change24h ?? 0) * 100).toFixed(2)}% (24h)
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 'var(--space-md)',
+                      paddingTop: 'var(--space-md)',
+                      borderTop: '1px solid var(--color-border-light)',
+                      fontSize: 'var(--font-sm)',
+                      color: 'var(--color-text-muted)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>Bid</span>
+                    <span style={{ fontFamily: 'monospace' }}>
+                      {source.tick.bidPrice > 0 ? `$${source.tick.bidPrice.toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 'var(--font-sm)',
+                      color: 'var(--color-text-muted)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginTop: 'var(--space-xs)',
+                    }}
+                  >
+                    <span>Ask</span>
+                    <span style={{ fontFamily: 'monospace' }}>
+                      {source.tick.askPrice > 0 ? `$${source.tick.askPrice.toFixed(2)}` : '—'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: 'var(--space-lg) 0', textAlign: 'center' }}>
+                  <div style={{ fontSize: 'var(--font-lg)', color: 'var(--color-text-muted)' }}>
+                    Unavailable
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 'var(--font-xs)',
+                      color: 'var(--color-text-muted)',
+                      marginTop: 'var(--space-xs)',
+                    }}
+                  >
+                    {selectedTicker} not listed on {source.name}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-sm)', marginTop: 'var(--space-xs)' }}>
-                  <span className="text-muted">TVL</span>
-                  <span style={{ fontFamily: 'monospace' }}>${(chain.tvl / 1000000).toFixed(1)}M</span>
-                </div>
-              </div>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Arbitrage opportunity card */}
+      {/* Action bar - placeholders until execution + AI are wired */}
       <div
         style={{
-          backgroundColor: 'rgba(210, 153, 34, 0.1)',
-          border: '1px solid var(--color-warning)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 'var(--space-lg)',
+          display: 'flex',
+          gap: 'var(--space-md)',
+          alignItems: 'center',
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-          <span style={{ fontSize: 'var(--font-xl)' }}>⚡</span>
-          <h3 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>Arbitrage Opportunity Detected</h3>
-        </div>
-
-        <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'center' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>
-              Buy on Solana (lowest) → Sell on Base (highest)
-            </div>
-            <div style={{ fontSize: 'var(--font-md)', fontWeight: 600, marginTop: 'var(--space-xs)' }}>
-              {selectedStock.chains.find((c) => c.price === minPrice)?.chain} →{' '}
-              {selectedStock.chains.find((c) => c.price === maxPrice)?.chain}
-            </div>
-          </div>
-
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>
-              Profit (after fees)
-            </div>
-            <div style={{ fontSize: 'var(--font-xl)', fontWeight: 700, color: 'var(--color-success)' }}>
-              ~${(spread - 1.5).toFixed(2)}
-            </div>
-            <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-success)' }}>
-              {((spreadPercent - 0.6)).toFixed(2)}% per trade
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-            <button
-              style={{
-                padding: 'var(--space-sm) var(--space-lg)',
-                backgroundColor: 'var(--color-accent)',
-                color: 'white',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Ask AI Agent
-            </button>
-            <button
-              style={{
-                padding: 'var(--space-sm) var(--space-lg)',
-                backgroundColor: 'transparent',
-                color: 'var(--color-text-secondary)',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 500,
-                border: '1px solid var(--color-border)',
-                cursor: 'pointer',
-              }}
-            >
-              View Details
-            </button>
-          </div>
-        </div>
+        <button
+          disabled
+          title="Order execution arrives in a later milestone"
+          style={{
+            padding: 'var(--space-md) var(--space-xl)',
+            backgroundColor: 'rgba(63, 185, 80, 0.15)',
+            color: 'var(--color-success)',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
+            border: '1px solid rgba(63, 185, 80, 0.4)',
+            cursor: 'not-allowed',
+            opacity: 0.6,
+          }}
+        >
+          Buy {selectedTicker}
+        </button>
+        <button
+          disabled
+          title="Order execution arrives in a later milestone"
+          style={{
+            padding: 'var(--space-md) var(--space-xl)',
+            backgroundColor: 'rgba(248, 81, 73, 0.15)',
+            color: 'var(--color-danger)',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
+            border: '1px solid rgba(248, 81, 73, 0.4)',
+            cursor: 'not-allowed',
+            opacity: 0.6,
+          }}
+        >
+          Sell {selectedTicker}
+        </button>
+        <button
+          title="AI analysis arrives in a later milestone"
+          style={{
+            padding: 'var(--space-md) var(--space-xl)',
+            backgroundColor: 'var(--color-accent)',
+            color: 'white',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            opacity: 0.75,
+          }}
+        >
+          🤖 Ask AI to analyze
+        </button>
+        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-text-muted)' }}>
+          Prices refresh every 10s · spread computed from {pricedSources.length} live source(s)
+        </span>
       </div>
     </div>
   )

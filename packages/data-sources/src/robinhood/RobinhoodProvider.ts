@@ -87,6 +87,7 @@ export class RobinhoodProvider implements IMarketDataProvider {
   async getTick(symbol: string): Promise<TickData> {
     const response = await fetch(`${QUOTES_BASE}?symbols=${encodeURIComponent(symbol)}`, {
       headers: { 'User-Agent': 'VibeDesk/0.1' },
+      signal: AbortSignal.timeout(10_000),
     })
     if (!response.ok) {
       throw new Error(`Robinhood quotes failed for ${symbol}: ${response.status}`)

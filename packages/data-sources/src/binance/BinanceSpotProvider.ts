@@ -66,7 +66,13 @@ export class BinanceSpotProvider implements IMarketDataProvider {
   async connect(): Promise<void> {
     this.ws = new WebSocketManager(WS_BASE)
     try {
-      await this.ws.connect()
+      // Bound the WS handshake so a dead socket never blocks startup.
+      await Promise.race([
+        this.ws.connect(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Binance WS connect timeout')), 5_000),
+        ),
+      ])
       this._isConnected = true
     } catch {
       // WebSocket connection may fail but REST still works

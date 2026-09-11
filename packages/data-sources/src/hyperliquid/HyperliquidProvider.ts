@@ -136,7 +136,13 @@ export class HyperliquidProvider implements IMarketDataProvider {
   async connect(): Promise<void> {
     this.ws = new HyperliquidWebSocketManager(WS_BASE)
     try {
-      await this.ws.connect()
+      // Bound the WS handshake so a dead socket never blocks startup.
+      await Promise.race([
+        this.ws.connect(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Hyperliquid WS connect timeout')), 5_000),
+        ),
+      ])
     } catch {
       // REST still works without WS.
     }
@@ -364,6 +370,7 @@ export class HyperliquidProvider implements IMarketDataProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
     })
     if (!response.ok) {
       throw new Error(`Hyperliquid info failed: ${response.status}`)

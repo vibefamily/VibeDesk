@@ -223,7 +223,10 @@ export class YahooFinanceProvider implements IMarketDataProvider {
     interval: string,
   ): Promise<YahooResult | undefined> {
     const url = `${CHART_BASE}${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`
-    const response = await fetch(url, { headers: { 'User-Agent': 'VibeDesk/0.1' } })
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'VibeDesk/0.1' },
+      signal: AbortSignal.timeout(10_000),
+    })
     if (!response.ok) {
       throw new Error(`Yahoo chart failed for ${symbol}: ${response.status}`)
     }
