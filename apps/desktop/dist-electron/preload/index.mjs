@@ -32,7 +32,10 @@ const vibeAPI = {
     remove: (args) => ipcRenderer.invoke("agent:remove", args),
     runOnce: (args) => ipcRenderer.invoke("agent:runOnce", args),
     setLlmConfig: (config) => ipcRenderer.invoke("agent:setLlmConfig", config),
-    getLlmConfig: () => ipcRenderer.invoke("agent:getLlmConfig")
+    getLlmConfig: () => ipcRenderer.invoke("agent:getLlmConfig"),
+    chat: (id, text) => ipcRenderer.invoke("agent:chat", { id, text }),
+    probeOllama: () => ipcRenderer.invoke("agent:probeOllama"),
+    testConnection: (config) => ipcRenderer.invoke("agent:testConnection", config)
   },
   // Market data (sources run in the main process)
   market: {

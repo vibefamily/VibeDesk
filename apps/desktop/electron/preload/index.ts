@@ -167,6 +167,10 @@ const vibeAPI = {
       model: string
     } | null) => ipcRenderer.invoke('agent:setLlmConfig', config),
     getLlmConfig: () => ipcRenderer.invoke('agent:getLlmConfig'),
+    chat: (id: string, text: string) => ipcRenderer.invoke('agent:chat', { id, text }),
+    probeOllama: () => ipcRenderer.invoke('agent:probeOllama'),
+    testConnection: (config: { baseUrl: string; apiKey: string; model: string }) =>
+      ipcRenderer.invoke('agent:testConnection', config),
   },
 
   // Market data (sources run in the main process)

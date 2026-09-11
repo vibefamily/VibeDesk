@@ -26,27 +26,27 @@ const Settings: React.FC = () => {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
             <SettingRow label="Theme" description="Choose your preferred color theme">
-              <select defaultValue="system" style={{ width: 160 }}>
+              <select defaultValue="system" style={{ ...ctl, width: 160 }}>
                 <option value="system">System</option>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
               </select>
             </SettingRow>
             <SettingRow label="Language" description="Display language">
-              <select defaultValue="en" style={{ width: 160 }}>
+              <select defaultValue="en" style={{ ...ctl, width: 160 }}>
                 <option value="en">English</option>
                 <option value="zh">中文</option>
               </select>
             </SettingRow>
             <SettingRow label="Default Quote Currency" description="Default pairing for markets">
-              <select defaultValue="USDT" style={{ width: 160 }}>
+              <select defaultValue="USDT" style={{ ...ctl, width: 160 }}>
                 <option value="USDT">USDT</option>
                 <option value="USDC">USDC</option>
                 <option value="USD">USD</option>
               </select>
             </SettingRow>
             <SettingRow label="Auto-refresh Interval" description="How often to refresh market data">
-              <select defaultValue="1000" style={{ width: 160 }}>
+              <select defaultValue="1000" style={{ ...ctl, width: 160 }}>
                 <option value="500">500ms</option>
                 <option value="1000">1s</option>
                 <option value="5000">5s</option>
@@ -83,13 +83,13 @@ const Settings: React.FC = () => {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
             <SettingRow label="Max Order Value" description="Maximum value per single order (USD)">
-              <input type="number" defaultValue="1000" style={{ width: 160, textAlign: 'right' }} />
+              <input type="number" defaultValue="1000" style={{ ...ctl, width: 160, textAlign: 'right' }} />
             </SettingRow>
             <SettingRow label="Max Daily Volume" description="Maximum total trading volume per day (USD)">
-              <input type="number" defaultValue="5000" style={{ width: 160, textAlign: 'right' }} />
+              <input type="number" defaultValue="5000" style={{ ...ctl, width: 160, textAlign: 'right' }} />
             </SettingRow>
             <SettingRow label="Max Drawdown" description="Stop trading if drawdown exceeds this">
-              <input type="number" defaultValue="20" style={{ width: 160, textAlign: 'right' }} />
+              <input type="number" defaultValue="20" style={{ ...ctl, width: 160, textAlign: 'right' }} />
               <span style={{ color: 'var(--color-text-muted)' }}>%</span>
             </SettingRow>
             <SettingRow label="Require Human Approval" description="All trades must be approved by user">
@@ -104,24 +104,39 @@ const Settings: React.FC = () => {
   }
 
   return (
-    <div style={{ padding: 'var(--space-xl)' }}>
-      <div style={{ marginBottom: 'var(--space-xl)' }}>
-        <h1 style={{ fontSize: 'var(--font-2xl)', margin: 0, marginBottom: 'var(--space-xs)' }}>
-          Settings
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-          Configure your trading preferences and connected accounts.
-        </p>
+    <div style={{ padding: 10, background: '#fff', minHeight: '100%', boxSizing: 'border-box' }}>
+      {/* Title bar */}
+      <div
+        style={{
+          border: '2px outset',
+          borderColor: '#fff #808080 #808080 #fff',
+          background: '#c0c0c0',
+          padding: '6px 10px',
+          marginBottom: 8,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+        }}
+      >
+        <span style={{ fontSize: 18 }}>⚙️</span>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Settings</div>
+          <div style={{ fontSize: 10 }}>Configure trading preferences and connected accounts</div>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 'var(--space-xl)' }}>
-        {/* Side tabs */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        {/* Side tabs - Windows list style */}
         <div
           style={{
-            width: 220,
+            width: 178,
             display: 'flex',
             flexDirection: 'column',
-            gap: 'var(--space-xs)',
+            gap: 2,
+            border: '2px outset',
+            borderColor: '#fff #808080 #808080 #fff',
+            background: '#c0c0c0',
+            padding: 4,
           }}
         >
           {tabs.map((tab) => (
@@ -131,15 +146,15 @@ const Settings: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 'var(--space-md)',
-                padding: 'var(--space-sm) var(--space-md)',
-                backgroundColor: activeTab === tab.id ? 'var(--color-bg-secondary)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer',
-                fontSize: 'var(--font-md)',
+                gap: 6,
+                padding: '4px 8px',
+                background: activeTab === tab.id ? '#000080' : 'transparent',
+                color: activeTab === tab.id ? '#fff' : '#000',
+                border: activeTab === tab.id ? '1px solid #000080' : 'none',
+                fontSize: 12,
                 textAlign: 'left',
+                cursor: 'pointer',
+                fontWeight: activeTab === tab.id ? 700 : 400,
               }}
             >
               <span>{tab.icon}</span>
@@ -148,24 +163,36 @@ const Settings: React.FC = () => {
           ))}
         </div>
 
-        {/* Content */}
+        {/* Content panel */}
         <div
           style={{
             flex: 1,
-            backgroundColor: 'var(--color-bg-secondary)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 'var(--space-xl)',
+            minWidth: 0,
+            border: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            background: '#c0c0c0',
+            padding: 8,
           }}
         >
-          <h2 style={{ margin: 0, marginBottom: 'var(--space-lg)', fontSize: 'var(--font-lg)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, color: '#000' }}>
             {tabs.find((t) => t.id === activeTab)?.label}
-          </h2>
+          </div>
           {renderContent()}
         </div>
       </div>
     </div>
   )
+}
+
+/** Shared Windows-95 style for form controls. */
+const ctl: React.CSSProperties = {
+  padding: '3px 6px',
+  fontSize: 11,
+  border: '2px inset',
+  borderColor: '#808080 #fff #fff #808080',
+  background: '#fff',
+  color: '#000',
+  fontFamily: 'inherit',
 }
 
 const SettingRow: React.FC<{
@@ -178,19 +205,18 @@ const SettingRow: React.FC<{
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: 'var(--space-md) 0',
-      borderBottom: '1px solid var(--color-border-light)',
+      gap: 12,
+      padding: '5px 0',
+      borderBottom: '1px solid #808080',
     }}
   >
-    <div>
-      <div style={{ fontWeight: 500 }}>{label}</div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 12 }}>{label}</div>
       {description && (
-        <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-muted)' }}>
-          {description}
-        </div>
+        <div style={{ fontSize: 10, color: '#555' }}>{description}</div>
       )}
     </div>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
       {children}
     </div>
   </div>
