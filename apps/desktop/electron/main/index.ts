@@ -10,6 +10,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { VaultWalletManager } from '@vibe/core/wallet'
 import { setupAgentIpc } from './ipc-agents'
+import { setupMarketIpc, stopMarketPolling } from './market'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -258,6 +259,10 @@ app.whenReady().then(async () => {
   setupIpcHandlers()
   createWindow()
 
+  // Market data bridge: polls live prices in the main process and pushes
+  // ticks to the renderer (fixes browser CORS on public endpoints).
+  setupMarketIpc()
+
   // Agents run in the main process (same security boundary as the
   // wallet vault); wire them up after the window exists.
   await setupAgentIpc({
@@ -278,5 +283,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   // Drop all in-memory keys on quit
   walletManager?.lock()
+  stopMarketPolling()
   win = null
 })

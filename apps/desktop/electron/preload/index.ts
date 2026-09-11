@@ -169,6 +169,13 @@ const vibeAPI = {
     getLlmConfig: () => ipcRenderer.invoke('agent:getLlmConfig'),
   },
 
+  // Market data (sources run in the main process)
+  market: {
+    getState: () => ipcRenderer.invoke('market:getState'),
+    refreshSymbol: (symbol: string) =>
+      ipcRenderer.invoke('market:refreshSymbol', symbol),
+  },
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     const validChannels = [
@@ -176,6 +183,7 @@ const vibeAPI = {
       'order:update',
       'agent:proposal',
       'agent:event',
+      'market:ticks',
     ]
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args))

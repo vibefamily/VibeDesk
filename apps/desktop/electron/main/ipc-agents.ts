@@ -11,9 +11,9 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { AgentManager } from '@vibe/agent-plugins'
 import type { OpenAIConfig } from '@vibe/agent-plugins'
-import { createDefaultDataSources } from '@vibe/data-sources'
 import type { MarketDataAggregator } from '@vibe/core'
 import type { VaultWalletManager } from '@vibe/core/wallet'
+import { getMarketAggregator } from './market'
 
 let agentManager: AgentManager | null = null
 let agentConfigPath = ''
@@ -66,9 +66,9 @@ export async function setupAgentIpc(
   agentConfigPath = options.configPath
 
   // Main-process data sources: the agents query live multi-source prices
-  // through their own aggregator (independent of the renderer's UI store).
-  const dataSources = await createDefaultDataSources()
-  const market: MarketDataAggregator = dataSources.aggregator
+  // through the shared aggregator (same instance the market bridge uses,
+  // so the UI and the agents always see the same prices).
+  const market: MarketDataAggregator = await getMarketAggregator()
 
   agentManager = new AgentManager({
     market,

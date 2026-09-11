@@ -107,11 +107,50 @@ interface AgentApiType {
   getLlmConfig: () => Promise<{ baseUrl: string; apiKey: string; model: string } | null>
 }
 
+interface ProviderManifestApiType {
+  id: string
+  name: string
+  kind: string
+  assetScope: string
+  authRequired: boolean
+  updateMode: string[]
+  description: string
+  privacyNote: string
+}
+
+interface TickDataApiType {
+  timestamp: number
+  symbol: string
+  bidPrice: number
+  bidSize: number
+  askPrice: number
+  askSize: number
+  lastPrice: number
+  change24h?: number | null
+  volume24h?: number | null
+}
+
+interface MarketApiType {
+  getState: () => Promise<{
+    ready: boolean
+    manifests: ProviderManifestApiType[]
+    ticks: Record<string, Record<string, TickDataApiType>>
+    unavailable: Record<string, string[]>
+    lastUpdated: number
+  }>
+  refreshSymbol: (symbol: string) => Promise<{
+    ticks: Record<string, Record<string, TickDataApiType>>
+    unavailable: Record<string, string[]>
+    lastUpdated: number
+  }>
+}
+
 interface VibeAPI {
   getAppInfo: () => Promise<{ version: string; name: string; platform: string }>
   ping: () => Promise<string>
   wallet: WalletApiType
   agent: AgentApiType
+  market: MarketApiType
   on: (channel: string, callback: (...args: unknown[]) => void) => void
 }
 

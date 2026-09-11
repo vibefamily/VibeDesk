@@ -1,68 +1,45 @@
 /**
- * Vibe Desktop - main App component.
+ * Vibe Desktop - main App component (React95 shell).
  *
- * Layout: left sidebar navigation + main content area.
- * Uses simple state-based navigation (no router needed for MVP).
+ * Renders a Windows 95 style desktop: teal wallpaper, the four core
+ * module icons (Trade / AI Agents / Wallet / Data), draggable windows
+ * and a taskbar. All product logic lives in the view components and
+ * stores - this shell only frames them.
  */
 
-import React, { useState } from 'react'
-import Sidebar from './components/Sidebar'
-import Dashboard from './views/Dashboard'
-import AgentChat from './views/AgentChat'
-import Agents from './views/Agents'
-import Strategies from './views/Strategies'
-import Portfolio from './views/Portfolio'
-import StockTokens from './views/StockTokens'
-import Wallets from './views/Wallets'
-import Settings from './views/Settings'
+import React from 'react'
+import { ThemeProvider } from 'styled-components'
+import original from 'react95/dist/themes/original'
+import { styleReset } from 'react95'
+import { createGlobalStyle } from 'styled-components'
+import Desktop from './components/95/Desktop'
 
-export type ViewId =
-  | 'dashboard'
-  | 'agent'
-  | 'portfolio'
-  | 'strategies'
-  | 'stock-tokens'
-  | 'wallets'
-  | 'settings'
+const GlobalStyles = createGlobalStyle`
+  ${styleReset}
 
-const App: React.FC = () => {
-  // Open on the core showcase screen (multi-source price comparison).
-  const [currentView, setCurrentView] = useState<ViewId>('stock-tokens')
-
-  const renderView = () => {
-    switch (currentView) {
-      case 'dashboard':
-        return <Dashboard />
-      case 'agent':
-        return <Agents />
-      case 'portfolio':
-        return <Portfolio />
-      case 'strategies':
-        return <Strategies />
-      case 'stock-tokens':
-        return <StockTokens />
-      case 'wallets':
-        return <Wallets />
-      case 'settings':
-        return <Settings />
-      default:
-        return <Dashboard />
-    }
+  * {
+    box-sizing: border-box;
   }
 
+  html, body, #root {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'MS Sans Serif', 'Segoe UI', Arial, sans-serif;
+  }
+`
+
+const App: React.FC = () => {
   return (
-    <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-      <Sidebar currentView={currentView} onNavigate={setCurrentView} />
-      <main
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          backgroundColor: 'var(--color-bg-primary)',
-        }}
-      >
-        {renderView()}
-      </main>
-    </div>
+    <ThemeProvider theme={original}>
+      <GlobalStyles />
+      <Desktop />
+    </ThemeProvider>
   )
 }
 

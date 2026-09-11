@@ -42,7 +42,7 @@ interface SourceCard {
 
 const StockTokens: React.FC = () => {
   const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_STOCK_TICKERS[0] ?? 'TSLA')
-  const { ready, error, registry, ticks, unavailable, init, refreshSymbol } = useMarketStore()
+  const { ready, error, manifests, ticks, unavailable, init, refreshSymbol } = useMarketStore()
 
   useEffect(() => {
     void init()
@@ -53,12 +53,12 @@ const StockTokens: React.FC = () => {
   }, [selectedTicker, refreshSymbol])
 
   const sources = useMemo<SourceCard[]>(() => {
-    if (!registry) {
+    if (manifests.length === 0) {
       return []
     }
     const symbolTicks = ticks[selectedTicker] ?? {}
     const symbolUnavailable = unavailable[selectedTicker] ?? []
-    return registry.list().map(({ manifest }) => ({
+    return manifests.map((manifest) => ({
       id: manifest.id,
       name: manifest.name,
       kind: manifest.kind,
@@ -66,7 +66,7 @@ const StockTokens: React.FC = () => {
       tick: symbolTicks[manifest.id],
       unavailable: symbolUnavailable.includes(manifest.id) && !symbolTicks[manifest.id],
     }))
-  }, [registry, ticks, unavailable, selectedTicker])
+  }, [manifests, ticks, unavailable, selectedTicker])
 
   const pricedSources = sources.filter((s) => s.tick)
   const minTick = pricedSources.reduce<TickData | null>(

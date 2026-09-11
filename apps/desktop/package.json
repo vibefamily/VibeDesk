@@ -21,6 +21,9 @@
     "@vibe/strategy-engine": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
+    "react-draggable": "^4.5.0",
+    "react95": "^4.0.0",
+    "styled-components": "^6.1.19",
     "zustand": "^4.5.0"
   },
   "devDependencies": {

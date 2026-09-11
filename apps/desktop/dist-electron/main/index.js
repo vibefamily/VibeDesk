@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { webContents, ipcMain, app, BrowserWindow, shell } from "electron";
+import { ipcMain, webContents, app, BrowserWindow, shell } from "electron";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -8709,6 +8709,86 @@ async function createDefaultDataSources() {
   }
   return { aggregator, registry };
 }
+const POLL_MS = 1e4;
+const CONCURRENCY = 4;
+let dataSourcesPromise = null;
+let pollTimer = null;
+function getMarketDataSources() {
+  if (!dataSourcesPromise) {
+    dataSourcesPromise = createDefaultDataSources();
+  }
+  return dataSourcesPromise;
+}
+async function getMarketAggregator() {
+  return (await getMarketDataSources()).aggregator;
+}
+async function snapshotSymbol(symbol) {
+  const { aggregator } = await getMarketDataSources();
+  const ticks = {};
+  const failed = [];
+  try {
+    const all = await aggregator.getTicksAll(symbol);
+    for (const provider of aggregator.listProviders()) {
+      const tick = all.get(provider.id);
+      if (tick) {
+        ticks[provider.id] = tick;
+      } else {
+        failed.push(provider.id);
+      }
+    }
+  } catch {
+  }
+  return { ticks, unavailable: failed };
+}
+async function takeSnapshot() {
+  const symbols = [...DEFAULT_STOCK_TICKERS];
+  const ticks = {};
+  const unavailable = {};
+  for (let i = 0; i < symbols.length; i += CONCURRENCY) {
+    const batch = symbols.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map((s) => snapshotSymbol(s)));
+    results.forEach((result, j) => {
+      ticks[batch[j]] = result.ticks;
+      unavailable[batch[j]] = result.unavailable;
+    });
+  }
+  return { ticks, unavailable, lastUpdated: Date.now() };
+}
+function broadcast(snapshot) {
+  for (const wc of webContents.getAllWebContents()) {
+    wc.send("market:ticks", snapshot);
+  }
+}
+function setupMarketIpc() {
+  ipcMain.handle("market:getState", async () => {
+    const ds = await getMarketDataSources();
+    const manifests = ds.registry.list().map((e) => e.manifest);
+    const snapshot = await takeSnapshot();
+    return { ready: true, manifests, ...snapshot };
+  });
+  ipcMain.handle("market:refreshSymbol", async (_e, symbol) => {
+    const result = await snapshotSymbol(String(symbol).toUpperCase());
+    const snap = {
+      ticks: { [String(symbol).toUpperCase()]: result.ticks },
+      unavailable: { [String(symbol).toUpperCase()]: result.unavailable },
+      lastUpdated: Date.now()
+    };
+    broadcast(snap);
+    return snap;
+  });
+  if (!pollTimer) {
+    pollTimer = setInterval(async () => {
+      const snap = await takeSnapshot().catch(() => null);
+      if (snap) broadcast(snap);
+    }, POLL_MS);
+  }
+}
+function stopMarketPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
 let agentManager = null;
 let agentConfigPath = "";
 function sanitizeTemplate(t) {
@@ -8751,8 +8831,7 @@ function saveAgentConfig(config) {
 }
 async function setupAgentIpc(options) {
   agentConfigPath = options.configPath;
-  const dataSources = await createDefaultDataSources();
-  const market = dataSources.aggregator;
+  const market = await getMarketAggregator();
   agentManager = new AgentManager({
     market,
     walletAccess: {
@@ -8997,6 +9076,7 @@ function setupIpcHandlers() {
 app.whenReady().then(async () => {
   setupIpcHandlers();
   createWindow();
+  setupMarketIpc();
   await setupAgentIpc({
     getWallet: getWalletManager,
     configPath: path.join(app.getPath("userData"), "agent-config.json")
@@ -9010,5 +9090,6 @@ app.on("window-all-closed", () => {
 });
 app.on("before-quit", () => {
   walletManager == null ? void 0 : walletManager.lock();
+  stopMarketPolling();
   win = null;
 });
