@@ -7558,6 +7558,41 @@ class AgentManager {
       managed.running = false;
     }
   }
+  /**
+   * Chat with an agent (real conversation, LLM mode only).
+   * Runs the ReAct loop with the user's text; the user line and every
+   * step/reply are pushed into the agent's message history.
+   */
+  async chat(id, text) {
+    const managed = this.agents.get(id);
+    if (!managed) throw new Error(`Unknown agent: ${id}`);
+    if (managed.running) throw new Error("Agent is busy with another run");
+    if (!managed.agent) {
+      throw new Error(
+        "Chat requires LLM mode. Configure an API key or Ollama in Settings > AI Models first."
+      );
+    }
+    managed.running = true;
+    managed.view.status = "running";
+    this.emit({ type: "status", agentId: id, status: "running", at: Date.now() });
+    this.pushMessage(id, { kind: "message", role: "user", content: text, at: Date.now() });
+    try {
+      const output = await managed.agent.run(text);
+      managed.view.lastMessage = output;
+      managed.view.status = "completed";
+      this.emit({ type: "status", agentId: id, status: "completed", at: Date.now() });
+      return this.get(id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      managed.view.status = "error";
+      this.emit({ type: "status", agentId: id, status: "error", at: Date.now() });
+      this.emit({ type: "error", agentId: id, message, at: Date.now() });
+      this.pushMessage(id, { kind: "error", content: message, at: Date.now() });
+      throw err;
+    } finally {
+      managed.running = false;
+    }
+  }
   async executeCycle(managed) {
     const { template, symbols } = managed;
     if (managed.agent) {
@@ -7630,7 +7665,8 @@ class AgentManager {
       id: generateId("msg_"),
       at: msg.at ?? Date.now(),
       kind: msg.kind,
-      content: msg.content
+      content: msg.content,
+      role: msg.role
     };
     managed.view.messages.push(entry);
     if (managed.view.messages.length > MAX_MESSAGES) {
@@ -8992,6 +9028,44 @@ async function setupAgentIpc(options) {
     }
   );
   ipcMain.handle("agent:getLlmConfig", () => agentManager.getLlmConfig());
+  ipcMain.handle("agent:chat", async (_e, args) => {
+    return agentManager.chat(args.id, String(args.text).trim());
+  });
+  ipcMain.handle("agent:probeOllama", async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:11434/api/tags", {
+        signal: AbortSignal.timeout(3e3)
+      });
+      if (!res.ok) return { ok: false, models: [], error: `Ollama HTTP ${res.status}` };
+      const data = await res.json();
+      const models = (data.models ?? []).map((m) => m.name).filter(Boolean);
+      return { ok: true, models, error: null };
+    } catch (err) {
+      return {
+        ok: false,
+        models: [],
+        error: err instanceof Error ? err.message : String(err)
+      };
+    }
+  });
+  ipcMain.handle(
+    "agent:testConnection",
+    async (_e, config) => {
+      try {
+        const provider = new OpenAICompatibleProvider(config);
+        const reply = await provider.chatComplete({
+          messages: [{ role: "user", content: "Reply with the single word: OK" }],
+          tools: [],
+          model: config.model,
+          temperature: 0
+        });
+        const text = (reply.content ?? "").slice(0, 60);
+        return { ok: true, reply: text || "connected" };
+      } catch (err) {
+        return { ok: false, reply: null, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+  );
 }
 const MAX_CACHE = 1e3;
 const DEFAULT_SOURCES = [

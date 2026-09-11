@@ -75,8 +75,24 @@ const AgentCard: React.FC<{
   templates: AgentTemplateView[]
   onChanged: () => void
 }> = ({ agent, templates, onChanged }) => {
-  const { start, stop, remove, runOnce } = useAgentStore()
+  const { start, stop, remove, runOnce, chat } = useAgentStore()
   const [expanded, setExpanded] = useState(false)
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const sendChat = async () => {
+    const text = input.trim()
+    if (!text || sending || agent.mode !== 'llm') return
+    setSending(true)
+    setInput('')
+    try {
+      await chat(agent.id, text)
+    } catch {
+      // Chat errors surface through the agent event stream / status badge.
+    } finally {
+      setSending(false)
+    }
+  }
   const template = templates.find((t) => t.id === agent.templateId)
   const running = agent.status === 'running'
 
@@ -161,41 +177,132 @@ const AgentCard: React.FC<{
       {expanded && (
         <div
           style={{
-            marginTop: 'var(--space-md)',
-            maxHeight: 260,
-            overflow: 'auto',
-            background: 'var(--color-bg-tertiary)',
-            borderRadius: 8,
-            padding: 'var(--space-sm)',
+            marginTop: 8,
+            border: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            background: '#fff',
+            padding: 6,
           }}
         >
-          {lastMsgs.length === 0 && (
-            <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--font-xs)' }}>
-              No output yet. Start the agent or press "Run now".
-            </p>
-          )}
-          {lastMsgs.map((m) => (
-            <div
-              key={m.id}
-              style={{
-                display: 'flex',
-                gap: 8,
-                padding: '3px 0',
-                fontSize: 'var(--font-xs)',
-                color:
-                  m.kind === 'error'
-                    ? 'var(--color-danger)'
-                    : m.kind === 'step'
-                      ? 'var(--color-text-muted)'
-                      : 'var(--color-text-primary)',
+          {/* Chat: user lines (right) + agent replies (left) + steps */}
+          <div
+            style={{
+              maxHeight: 220,
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            {lastMsgs.length === 0 && (
+              <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 11 }}>
+                No activity yet. Start the agent, press "Run now", or send a message below.
+              </p>
+            )}
+            {lastMsgs.map((m, i) => {
+              const prev = lastMsgs[i - 1]
+              const isDupUserStep =
+                m.kind === 'step' && prev && prev.role === 'user' && prev.content === m.content
+              if (isDupUserStep) return null
+              if (m.role === 'user') {
+                return (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <span
+                      style={{
+                        maxWidth: '82%',
+                        background: '#c0c0c0',
+                        border: '2px outset',
+                        borderColor: '#fff #808080 #808080 #fff',
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {m.content}
+                    </span>
+                  </div>
+                )
+              }
+              if (m.kind === 'step') {
+                return (
+                  <div key={m.id} style={{ fontSize: 10, color: '#666', fontStyle: 'italic' }}>
+                    ⚙ {fmtTime(m.at)} {m.content}
+                  </div>
+                )
+              }
+              if (m.kind === 'error') {
+                return (
+                  <div key={m.id} style={{ fontSize: 11, color: '#a00', whiteSpace: 'pre-wrap' }}>
+                    ✕ {m.content}
+                  </div>
+                )
+              }
+              return (
+                <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <span
+                    style={{
+                      maxWidth: '82%',
+                      background: '#e5e5e5',
+                      border: '2px outset',
+                      borderColor: '#fff #808080 #808080 #fff',
+                      padding: '4px 8px',
+                      fontSize: 11,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    <span style={{ fontSize: 9, color: '#555', display: 'block' }}>
+                      {agent.name} · {fmtTime(m.at)}
+                    </span>
+                    {m.content}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Chat input */}
+          <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void sendChat()
               }}
+              placeholder={
+                agent.mode === 'llm'
+                  ? 'Message this agent… (Enter to send)'
+                  : 'Chat needs LLM mode - add an API key or Ollama in Settings > AI Models'
+              }
+              disabled={agent.mode !== 'llm' || sending}
+              style={{
+                flex: 1,
+                padding: '4px 6px',
+                fontSize: 11,
+                border: '2px inset',
+                borderColor: '#808080 #fff #fff #808080',
+                background: agent.mode === 'llm' ? '#fff' : '#e8e8e8',
+                color: agent.mode === 'llm' ? '#000' : '#999',
+              }}
+            />
+            <button
+              style={{
+                padding: '4px 12px',
+                fontSize: 11,
+                background: '#c0c0c0',
+                border: '2px outset',
+                borderColor: '#fff #808080 #808080 #fff',
+                cursor: agent.mode === 'llm' && !sending ? 'pointer' : 'default',
+                fontWeight: 700,
+              }}
+              onClick={() => void sendChat()}
+              disabled={agent.mode !== 'llm' || sending}
             >
-              <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>
-                {fmtTime(m.at)}
-              </span>
-              <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.content}</span>
-            </div>
-          ))}
+              {sending ? '…' : 'Send'}
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -22,6 +22,7 @@ export interface AgentMessageView {
   at: number
   kind: string
   content: string
+  role?: 'user' | 'agent'
 }
 
 export interface AgentInstanceView {
@@ -57,6 +58,7 @@ interface AgentState {
   stop: (id: string) => Promise<void>
   remove: (id: string) => Promise<void>
   runOnce: (id: string) => Promise<void>
+  chat: (id: string, text: string) => Promise<void>
   setLlmConfig: (config: LlmConfig | null) => Promise<{ mode: 'llm' | 'rule' }>
   getLlmConfig: () => Promise<LlmConfig | null>
   applyEvent: (event: {
@@ -117,6 +119,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   runOnce: async (id) => {
     await api.runOnce({ id })
+    await get().refresh()
+  },
+
+  chat: async (id, text) => {
+    await api.chat(id, text)
     await get().refresh()
   },
 

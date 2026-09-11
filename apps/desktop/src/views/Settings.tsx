@@ -205,12 +205,18 @@ const SettingRow: React.FC<{
  */
 const LlmSettings: React.FC = () => {
   const { setLlmConfig, getLlmConfig, mode } = useAgentStore()
+  const [provider, setProvider] = useState<'openai' | 'ollama'>('openai')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('')
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [ollamaModels, setOllamaModels] = useState<string[]>([])
+  const [ollamaError, setOllamaError] = useState('')
+  const [detecting, setDetecting] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -219,6 +225,7 @@ const LlmSettings: React.FC = () => {
         setBaseUrl(cfg.baseUrl)
         setApiKey(cfg.apiKey)
         setModel(cfg.model)
+        if (cfg.baseUrl.includes('11434')) setProvider('ollama')
       }
       setLoaded(true)
     })()
@@ -249,6 +256,9 @@ const LlmSettings: React.FC = () => {
       setBaseUrl('')
       setApiKey('')
       setModel('')
+      setProvider('openai')
+      setOllamaModels([])
+      setTestResult(null)
       setMessage('Cleared. Agents run in deterministic rule mode.')
     } catch (e) {
       setMessage(`Failed: ${(e as Error).message}`)
@@ -257,94 +267,194 @@ const LlmSettings: React.FC = () => {
     }
   }
 
+  const pickOllama = () => {
+    setProvider('ollama')
+    setBaseUrl('http://127.0.0.1:11434/v1')
+    setApiKey('')
+    setTestResult(null)
+    setOllamaError('')
+  }
+
+  const detectOllama = async () => {
+    setDetecting(true)
+    setOllamaError('')
+    try {
+      const res = await window.vibeAPI.agent.probeOllama()
+      if (!res.ok) {
+        setOllamaError(res.error ?? 'Ollama not reachable - is it running on 127.0.0.1:11434?')
+        setOllamaModels([])
+      } else {
+        setOllamaModels(res.models)
+        if (res.models.length > 0 && !res.models.includes(model)) {
+          setModel(res.models[0]!)
+        }
+      }
+    } catch (e) {
+      setOllamaError((e as Error).message)
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  const testConnection = async () => {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await window.vibeAPI.agent.testConnection({
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+        model: model.trim(),
+      })
+      setTestResult(
+        res.ok
+          ? { ok: true, text: `Connected ✓ model replied: ${res.reply ?? ''}` }
+          : { ok: false, text: `Failed: ${res.error ?? 'unknown error'}` },
+      )
+    } catch (e) {
+      setTestResult({ ok: false, text: `Failed: ${(e as Error).message}` })
+    } finally {
+      setTesting(false)
+    }
+  }
+
   if (!loaded) {
     return <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
   }
 
+  const input: React.CSSProperties = {
+    width: 320,
+    fontFamily: 'monospace',
+    padding: '3px 6px',
+    fontSize: 11,
+    border: '2px inset',
+    borderColor: '#808080 #fff #fff #808080',
+    background: '#fff',
+  }
+  const miniBtn: React.CSSProperties = {
+    padding: '3px 10px',
+    fontSize: 11,
+    background: '#c0c0c0',
+    border: '2px outset',
+    borderColor: '#fff #808080 #808080 #fff',
+    cursor: 'pointer',
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 560 }}>
       <div
         style={{
-          padding: '10px 14px',
-          borderRadius: 8,
-          background:
-            mode === 'llm' ? 'rgba(63,185,80,0.1)' : 'rgba(210,153,34,0.08)',
-          border:
-            mode === 'llm'
-              ? '1px solid rgba(63,185,80,0.3)'
-              : '1px solid rgba(210,153,34,0.25)',
-          color: mode === 'llm' ? 'var(--color-success)' : 'var(--color-warning)',
-          fontSize: 'var(--font-sm)',
+          border: '2px outset',
+          borderColor: '#fff #808080 #808080 #fff',
+          background: '#c0c0c0',
+          padding: '4px 8px',
+          fontSize: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
         }}
       >
-        {mode === 'llm'
-          ? 'LLM mode is active - agents analyze with your configured model.'
-          : 'Rule mode - agents use deterministic analysis on live multi-source prices. Configure a key to unlock LLM analysis.'}
+        <span>{mode === 'llm' ? '⚡ LLM mode active' : '⏸ Rule mode (no LLM key)'}</span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 10, color: '#333' }}>
+          Any OpenAI-compatible endpoint · Ollama local supported
+        </span>
       </div>
 
-      <SettingRow label="API Base URL" description="OpenAI-compatible endpoint, e.g. https://api.openai.com/v1 or https://api.deepseek.com/v1">
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Provider</span>
+        <button
+          style={{ ...miniBtn, fontWeight: provider === 'openai' ? 700 : 400 }}
+          onClick={() => { setProvider('openai'); setTestResult(null) }}
+        >
+          OpenAI-compatible
+        </button>
+        <button
+          style={{ ...miniBtn, fontWeight: provider === 'ollama' ? 700 : 400 }}
+          onClick={pickOllama}
+        >
+          Ollama (local)
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Base URL</span>
         <input
           type="text"
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           placeholder="https://api.openai.com/v1"
-          style={{ width: 320, fontFamily: 'monospace' }}
+          style={input}
         />
-      </SettingRow>
-      <SettingRow label="API Key" description="Key for the provider (stored locally, never leaves this machine)">
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>API Key</span>
         <input
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-..."
-          style={{ width: 320, fontFamily: 'monospace' }}
+          placeholder={provider === 'ollama' ? 'not needed for local Ollama' : 'sk-...'}
+          style={input}
         />
-      </SettingRow>
-      <SettingRow label="Model" description="Model id, e.g. gpt-4o-mini, deepseek-chat, qwen2.5:7b">
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Model</span>
         <input
           type="text"
           value={model}
           onChange={(e) => setModel(e.target.value)}
-          placeholder="deepseek-chat"
-          style={{ width: 320, fontFamily: 'monospace' }}
+          placeholder="gpt-4o-mini / deepseek-chat / llama3.2"
+          style={input}
         />
-      </SettingRow>
-      <SettingRow label="" description="">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button
-            onClick={() => void onSave()}
-            disabled={saving}
-            style={{
-              padding: '8px 20px',
-              backgroundColor: 'var(--color-accent)',
-              color: 'white',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 'var(--font-sm)',
-              fontWeight: 600,
-            }}
-          >
-            {saving ? 'Saving…' : 'Save'}
+        {provider === 'ollama' && (
+          <button style={miniBtn} onClick={() => void detectOllama()} disabled={detecting}>
+            {detecting ? 'Detecting…' : 'Detect local models'}
           </button>
-          <button
-            onClick={() => void onClear()}
-            disabled={saving}
-            style={{
-              padding: '8px 20px',
-              backgroundColor: 'transparent',
-              color: 'var(--color-text-secondary)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-              cursor: 'pointer',
-              fontSize: 'var(--font-sm)',
-            }}
+        )}
+      </div>
+
+      {provider === 'ollama' && ollamaModels.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Pick model</span>
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            style={{ ...input, width: 320 }}
           >
-            Clear
-          </button>
-          {message && <span style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>{message}</span>}
+            {ollamaModels.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
         </div>
-      </SettingRow>
+      )}
+      {ollamaError && <div style={{ fontSize: 10, color: '#a00' }}>{ollamaError}</div>}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Verify</span>
+        <button style={miniBtn} onClick={() => void testConnection()} disabled={testing}>
+          {testing ? 'Testing…' : 'Test connection'}
+        </button>
+        {testResult && (
+          <span style={{ fontSize: 10, color: testResult.ok ? '#008000' : '#a00' }}>
+            {testResult.text}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+        <button
+          onClick={() => void onSave()}
+          disabled={saving}
+          style={{ ...miniBtn, fontWeight: 700, padding: '4px 16px' }}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={() => void onClear()} disabled={saving} style={{ ...miniBtn, color: '#a00' }}>
+          Clear
+        </button>
+        {message && <span style={{ fontSize: 10, color: '#333', alignSelf: 'center' }}>{message}</span>}
+      </div>
     </div>
   )
 }

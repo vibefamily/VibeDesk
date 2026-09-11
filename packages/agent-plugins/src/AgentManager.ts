@@ -42,6 +42,8 @@ export interface AgentMessageView {
   at: number
   kind: 'run' | 'step' | 'message' | 'error'
   content: string
+  /** Sender for chat bubbles (user vs agent). */
+  role?: 'user' | 'agent'
 }
 
 /** UI-facing view of an agent instance. */
@@ -256,6 +258,42 @@ export class AgentManager {
     }
   }
 
+  /**
+   * Chat with an agent (real conversation, LLM mode only).
+   * Runs the ReAct loop with the user's text; the user line and every
+   * step/reply are pushed into the agent's message history.
+   */
+  async chat(id: string, text: string): Promise<AgentInstanceView> {
+    const managed = this.agents.get(id)
+    if (!managed) throw new Error(`Unknown agent: ${id}`)
+    if (managed.running) throw new Error('Agent is busy with another run')
+    if (!managed.agent) {
+      throw new Error(
+        'Chat requires LLM mode. Configure an API key or Ollama in Settings > AI Models first.',
+      )
+    }
+    managed.running = true
+    managed.view.status = 'running'
+    this.emit({ type: 'status', agentId: id, status: 'running', at: Date.now() })
+    this.pushMessage(id, { kind: 'message', role: 'user', content: text, at: Date.now() })
+    try {
+      const output = await managed.agent.run(text)
+      managed.view.lastMessage = output
+      managed.view.status = 'completed'
+      this.emit({ type: 'status', agentId: id, status: 'completed', at: Date.now() })
+      return this.get(id)!
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      managed.view.status = 'error'
+      this.emit({ type: 'status', agentId: id, status: 'error', at: Date.now() })
+      this.emit({ type: 'error', agentId: id, message, at: Date.now() })
+      this.pushMessage(id, { kind: 'error', content: message, at: Date.now() })
+      throw err
+    } finally {
+      managed.running = false
+    }
+  }
+
   private async executeCycle(managed: ManagedAgent): Promise<string> {
     const { template, symbols } = managed
     if (managed.agent) {
@@ -338,6 +376,7 @@ export class AgentManager {
       at: msg.at ?? Date.now(),
       kind: msg.kind,
       content: msg.content,
+      role: msg.role,
     }
     managed.view.messages.push(entry)
     if (managed.view.messages.length > MAX_MESSAGES) {

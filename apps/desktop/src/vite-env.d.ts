@@ -105,6 +105,13 @@ interface AgentApiType {
   runOnce: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   setLlmConfig: (config: { baseUrl: string; apiKey: string; model: string } | null) => Promise<{ mode: 'llm' | 'rule' }>
   getLlmConfig: () => Promise<{ baseUrl: string; apiKey: string; model: string } | null>
+  chat: (id: string, text: string) => Promise<AgentInstanceViewApiType>
+  probeOllama: () => Promise<{ ok: boolean; models: string[]; error: string | null }>
+  testConnection: (config: { baseUrl: string; apiKey: string; model: string }) => Promise<{
+    ok: boolean
+    reply: string | null
+    error: string | null
+  }>
 }
 
 interface ProviderManifestApiType {

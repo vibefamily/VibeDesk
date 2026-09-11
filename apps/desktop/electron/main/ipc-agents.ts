@@ -9,7 +9,7 @@
 import { ipcMain, webContents } from 'electron'
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { AgentManager } from '@vibe/agent-plugins'
+import { AgentManager, OpenAICompatibleProvider } from '@vibe/agent-plugins'
 import type { OpenAIConfig } from '@vibe/agent-plugins'
 import type { MarketDataAggregator } from '@vibe/core'
 import type { VaultWalletManager } from '@vibe/core/wallet'
@@ -173,4 +173,48 @@ export async function setupAgentIpc(
   )
 
   ipcMain.handle('agent:getLlmConfig', () => agentManager!.getLlmConfig())
+
+  // --- Chat (real conversation, LLM mode) ---
+  ipcMain.handle('agent:chat', async (_e, args: { id: string; text: string }) => {
+    return agentManager!.chat(args.id, String(args.text).trim())
+  })
+
+  // --- Ollama support: list local models from http://127.0.0.1:11434 ---
+  ipcMain.handle('agent:probeOllama', async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:11434/api/tags', {
+        signal: AbortSignal.timeout(3000),
+      })
+      if (!res.ok) return { ok: false, models: [], error: `Ollama HTTP ${res.status}` }
+      const data = (await res.json()) as { models?: Array<{ name?: string }> }
+      const models = (data.models ?? []).map((m) => m.name).filter(Boolean)
+      return { ok: true, models, error: null }
+    } catch (err) {
+      return {
+        ok: false,
+        models: [],
+        error: err instanceof Error ? err.message : String(err),
+      }
+    }
+  })
+
+  // --- Connection test for any OpenAI-compatible endpoint ---
+  ipcMain.handle(
+    'agent:testConnection',
+    async (_e, config: OpenAIConfig) => {
+      try {
+        const provider = new OpenAICompatibleProvider(config)
+        const reply = await provider.chatComplete({
+          messages: [{ role: 'user', content: 'Reply with the single word: OK' }],
+          tools: [],
+          model: config.model,
+          temperature: 0,
+        })
+        const text = (reply.content ?? '').slice(0, 60)
+        return { ok: true, reply: text || 'connected' }
+      } catch (err) {
+        return { ok: false, reply: null, error: err instanceof Error ? err.message : String(err) }
+      }
+    },
+  )
 }

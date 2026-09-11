@@ -11,7 +11,7 @@ import type { IMarketDataProvider } from '@vibe/core'
 import type { Instrument, OrderBookData, TickData } from '@vibe/shared'
 import { AgentManager } from '../AgentManager'
 import { BUILTIN_TEMPLATES } from '../templates'
-import type { ChatMessage, LLMProvider } from '../runtime/types'
+import type { ChatMessage, LLMProvider, ToolDefinition } from '../runtime/types'
 
 class FakeMarketProvider implements IMarketDataProvider {
   readonly id: string
@@ -154,5 +154,60 @@ describe('AgentManager', () => {
     expect(manager.get(view.id)!.status).toBe('running')
     manager.stop(view.id)
     expect(manager.get(view.id)!.status).toBe('stopped')
+  })
+})
+
+describe('AgentManager.chat', () => {
+  it('rejects chat in rule mode (no LLM key)', async () => {
+    const manager = new AgentManager({ market: makeMarket() })
+    const view = manager.create('stock-analyst', { symbols: ['TSLA'] })
+    await expect(manager.chat(view.id, 'hello')).rejects.toThrow(/LLM mode/)
+  })
+
+  it('chats with an agent in LLM mode and records user + reply lines', async () => {
+    const manager = new AgentManager({ market: makeMarket() })
+    manager.setLlmConfig({
+      baseUrl: 'https://fake.local/v1',
+      apiKey: 'sk-test',
+      model: 'fake-model',
+    })
+    // Swap the real provider for a stub that echoes the user's question.
+    const managed = (
+      manager as unknown as {
+        agents: Map<string, { agent: { provider: LLMProvider } | null }>
+      }
+    ).agents
+    const view = manager.create('stock-analyst', { symbols: ['TSLA'] })
+    const agent = managed.get(view.id)!.agent!
+    agent.provider = {
+      chatComplete: async ({
+        messages,
+      }: {
+        messages: ChatMessage[]
+        tools?: ToolDefinition[]
+        model: string
+        temperature?: number
+        signal?: AbortSignal
+        onStream?: (delta: string) => void
+      }) => ({
+        role: 'assistant',
+        content: `echo: ${messages.at(-1)?.content}`,
+        toolCalls: [],
+      }),
+    } as unknown as LLMProvider
+
+    const after = await manager.chat(view.id, 'Is TSLA cheap?')
+    expect(after.status).toBe('completed')
+    expect(after.lastMessage).toContain('Is TSLA cheap?')
+
+    const kinds = after.messages.map((m) => `${m.kind}:${m.role ?? ''}`)
+    // user line first, then the assistant reply
+    expect(kinds[0]).toBe('message:user')
+    expect(after.messages.some((m) => m.role === 'user' && m.content === 'Is TSLA cheap?')).toBe(
+      true,
+    )
+    expect(after.messages.some((m) => m.kind === 'message' && m.content.includes('echo:'))).toBe(
+      true,
+    )
   })
 })
