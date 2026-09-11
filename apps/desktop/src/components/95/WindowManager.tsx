@@ -14,6 +14,7 @@ import Wallets from '../../views/Wallets'
 import DataSources from '../../views/DataSources'
 import Settings from '../../views/Settings'
 import ChatCenter from '../../views/ChatCenter'
+import ChatWindow from '../../views/ChatWindow'
 import InfoCenter from '../../views/InfoCenter'
 import Dashboard from '../../views/Dashboard'
 import Strategies from '../../views/Strategies'
@@ -32,6 +33,16 @@ const WINDOW_COMPONENTS: Record<string, React.FC> = {
   portfolio: Portfolio,
 }
 
+/** Resolve the component for a window key. Chat windows are dynamic:
+ *  a component key of `chat:<agentId>` renders that session's window. */
+function resolveComponent(component: string): React.FC | null {
+  if (component.startsWith('chat:')) {
+    const agentId = component.slice('chat:'.length)
+    return () => <ChatWindow agentId={agentId} />
+  }
+  return WINDOW_COMPONENTS[component] ?? null
+}
+
 const WindowManager: React.FC = () => {
   const windows = useWindowStore((s) => s.windows)
 
@@ -39,7 +50,7 @@ const WindowManager: React.FC = () => {
     <>
       {windows.map((win) => {
         if (win.isMinimized) return null
-        const Content = WINDOW_COMPONENTS[win.component]
+        const Content = resolveComponent(win.component)
         if (!Content) return null
         return (
           <CustomWindow

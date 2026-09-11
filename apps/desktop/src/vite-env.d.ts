@@ -212,7 +212,11 @@ interface VibeAPI {
   agent: AgentApiType
   market: MarketApiType
   info: InfoApiType
-  on: (channel: string, callback: (...args: unknown[]) => void) => void
+  on: (
+    channel: string,
+    callback: (...args: unknown[]) => void,
+  ) => (() => void) | void
+  off: (channel: string, callback: (...args: unknown[]) => void) => void
 }
 
 interface Window {

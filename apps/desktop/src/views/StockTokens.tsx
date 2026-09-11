@@ -9,6 +9,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMarketStore } from '../stores/marketStore'
+import { useAgentStore } from '../stores/agentStore'
 import { useWindowStore } from '../components/95/windowStore'
 import { DEFAULT_STOCK_TICKERS, STOCK_TICKER_NAMES } from '@vibe/shared'
 
@@ -30,6 +31,37 @@ const CELL_HEAD: React.CSSProperties = {
   background: '#c0c0c0',
   fontWeight: 700,
   borderRight: '1px solid #fff',
+}
+
+
+/** Ask AI: find or create a stock-analyst session for this symbol, open
+ *  its own chat window and auto-send the analysis question. */
+async function askAI(symbol: string): Promise<void> {
+  const agentStore = useAgentStore.getState()
+  const winStore = useWindowStore.getState()
+  await agentStore.refresh()
+  const existing = agentStore.agents.find(
+    (a) => a.templateId === 'stock-analyst' && a.symbols.join(',') === symbol,
+  )
+  let id = existing?.id
+  if (!id) {
+    await agentStore.create({
+      templateId: 'stock-analyst',
+      name: `${symbol} Analyst`,
+      symbols: [symbol],
+    })
+    await agentStore.refresh()
+    id = useAgentStore
+      .getState()
+      .agents.find((a) => a.templateId === 'stock-analyst' && a.symbols.join(',') === symbol)?.id
+  }
+  if (!id) return
+  winStore.setChatIntent({
+    agentId: id,
+    templateId: 'stock-analyst',
+    question: `Analyze ${symbol} right now: fetch live prices across all sources, compare them, note the cross-source spread, and give a recommendation with reasons and risks.`,
+  })
+  winStore.openChatWindow(id, `${symbol} Analyst`, '📈')
 }
 
 const StockTokens: React.FC = () => {
@@ -164,16 +196,8 @@ const StockTokens: React.FC = () => {
           </button>
           <button
             style={{ ...winBtn, fontWeight: 700 }}
-            onClick={() => {
-              useWindowStore.getState().setChatIntent({
-                templateId: 'stock-analyst',
-                title: `${selected.symbol} Analyst`,
-                symbols: [selected.symbol],
-                question: `Analyze ${selected.symbol} right now: fetch live prices across all sources, compare them, note the cross-source spread, and give a recommendation with reasons and risks.`,
-              })
-              useWindowStore.getState().openWindow('chat-center', 'Chat Center', '💬')
-            }}
-            title="Ask the AI agent to analyze this stock in Chat Center"
+            onClick={() => void askAI(selected.symbol)}
+            title="Ask the AI agent to analyze this stock in its own chat window"
           >
             Ask AI
           </button>

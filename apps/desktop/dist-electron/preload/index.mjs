@@ -61,8 +61,13 @@ const vibeAPI = {
       "info:event"
     ];
     if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+      const listener = (_event, ...args) => callback(...args);
+      ipcRenderer.on(channel, listener);
+      return () => ipcRenderer.removeListener(channel, listener);
     }
+  },
+  off: (channel, callback) => {
+    ipcRenderer.removeListener(channel, callback);
   }
 };
 contextBridge.exposeInMainWorld("vibeAPI", vibeAPI);

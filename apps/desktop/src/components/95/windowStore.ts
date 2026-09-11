@@ -27,6 +27,8 @@ export interface WindowState {
 }
 
 export interface ChatIntent {
+  /** When set, act on an existing agent session instead of creating one. */
+  agentId?: string
   templateId: string
   title?: string
   symbols?: string[]
@@ -52,7 +54,13 @@ interface WindowStore {
   focusWindow: (id: string) => void
   updateWindowPosition: (id: string, x: number, y: number) => void
   updateWindowSize: (id: string, width: number, height: number) => void
-  openWindow: (component: string, title: string, icon: string) => void
+  openWindow: (
+    component: string,
+    title: string,
+    icon: string,
+    opts?: { width?: number; height?: number },
+  ) => void
+  openChatWindow: (agentId: string, title: string, icon: string) => void
   chatIntent: ChatIntent | null
   setChatIntent: (intent: ChatIntent) => void
   consumeChatIntent: () => void
@@ -145,7 +153,7 @@ export const useWindowStore = create<WindowStore>((set) => ({
       windows: state.windows.map((w) => (w.id === id ? { ...w, width, height } : w)),
     })),
 
-  openWindow: (component, title, icon) => {
+  openWindow: (component, title, icon, opts) => {
     const { windows, nextZIndex } = useWindowStore.getState()
     // Bring an already-open window to front instead of duplicating it.
     const existing = windows.find((w) => w.component === component)
@@ -167,10 +175,17 @@ export const useWindowStore = create<WindowStore>((set) => ({
       icon,
       x: 60 + cascade,
       y: 40 + cascade,
-      width: 760,
-      height: 520,
+      width: opts?.width ?? 760,
+      height: opts?.height ?? 520,
     })
     void nextZIndex
+  },
+
+  openChatWindow: (agentId, title, icon) => {
+    useWindowStore.getState().openWindow(`chat:${agentId}`, title, icon, {
+      width: 680,
+      height: 500,
+    })
   },
 
   chatIntent: null,

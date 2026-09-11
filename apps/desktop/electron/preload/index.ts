@@ -200,8 +200,14 @@ const vibeAPI = {
       'info:event',
     ]
     if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args))
+      const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void =>
+        callback(...args)
+      ipcRenderer.on(channel, listener)
+      return () => ipcRenderer.removeListener(channel, listener)
     }
+  },
+  off: (channel: string, callback: (...args: unknown[]) => void) => {
+    ipcRenderer.removeListener(channel, callback)
   },
 }
 
