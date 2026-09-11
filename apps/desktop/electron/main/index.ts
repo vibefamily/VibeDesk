@@ -9,6 +9,7 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { VaultWalletManager } from '@vibe/core/wallet'
+import { setupAgentIpc } from './ipc-agents'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -253,9 +254,16 @@ function setupIpcHandlers() {
 
 // --- App lifecycle ---
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupIpcHandlers()
   createWindow()
+
+  // Agents run in the main process (same security boundary as the
+  // wallet vault); wire them up after the window exists.
+  await setupAgentIpc({
+    getWallet: getWalletManager,
+    configPath: path.join(app.getPath('userData'), 'agent-config.json'),
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

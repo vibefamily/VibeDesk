@@ -9,6 +9,43 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { WalletMeta } from '@vibe/core/wallet'
 
+/** Template metadata exposed to the renderer (functions stripped). */
+export interface AgentTemplateView {
+  id: string
+  name: string
+  description: string
+  icon: string
+  defaultIntervalMs: number
+  defaultSymbols: string[]
+  tools: string[]
+}
+
+/** Agent instance view returned by the main process. */
+export interface AgentInstanceView {
+  id: string
+  templateId: string
+  name: string
+  icon: string
+  status: 'idle' | 'running' | 'completed' | 'error' | 'stopped'
+  mode: 'llm' | 'rule'
+  symbols: string[]
+  intervalMs: number
+  createdAt: number
+  lastRunAt: number | null
+  lastMessage: string | null
+  messages: { id: string; at: number; kind: string; content: string }[]
+}
+
+/** Agent event pushed from the main process. */
+export interface AgentEvent {
+  type: 'status' | 'step' | 'message' | 'error'
+  agentId: string
+  content?: string
+  message?: string
+  status?: string
+  at: number
+}
+
 /** Wallet IPC surface exposed to the renderer. */
 export interface WalletApi {
   getState: () => Promise<{
@@ -113,9 +150,33 @@ const vibeAPI = {
       ipcRenderer.invoke('wallet:remove', args),
   } satisfies WalletApi,
 
+  // Agents (managed in the main process)
+  agent: {
+    listTemplates: () => ipcRenderer.invoke('agent:listTemplates'),
+    list: () => ipcRenderer.invoke('agent:list'),
+    getMode: () => ipcRenderer.invoke('agent:getMode'),
+    create: (args: { templateId: string; name?: string; symbols?: string[] }) =>
+      ipcRenderer.invoke('agent:create', args),
+    start: (args: { id: string }) => ipcRenderer.invoke('agent:start', args),
+    stop: (args: { id: string }) => ipcRenderer.invoke('agent:stop', args),
+    remove: (args: { id: string }) => ipcRenderer.invoke('agent:remove', args),
+    runOnce: (args: { id: string }) => ipcRenderer.invoke('agent:runOnce', args),
+    setLlmConfig: (config: {
+      baseUrl: string
+      apiKey: string
+      model: string
+    } | null) => ipcRenderer.invoke('agent:setLlmConfig', config),
+    getLlmConfig: () => ipcRenderer.invoke('agent:getLlmConfig'),
+  },
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => {
-    const validChannels = ['market:tick', 'order:update', 'agent:proposal']
+    const validChannels = [
+      'market:tick',
+      'order:update',
+      'agent:proposal',
+      'agent:event',
+    ]
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args))
     }

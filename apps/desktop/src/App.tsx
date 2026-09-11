@@ -9,6 +9,7 @@ import React, { useState } from 'react'
 import Sidebar from './components/Sidebar'
 import Dashboard from './views/Dashboard'
 import AgentChat from './views/AgentChat'
+import Agents from './views/Agents'
 import Strategies from './views/Strategies'
 import Portfolio from './views/Portfolio'
 import StockTokens from './views/StockTokens'
@@ -33,7 +34,7 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard />
       case 'agent':
-        return <AgentChat />
+        return <Agents />
       case 'portfolio':
         return <Portfolio />
       case 'strategies':

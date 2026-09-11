@@ -29,6 +29,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@vibe/agent-plugins':
+        specifier: workspace:^
+        version: link:../../packages/agent-plugins
       '@vibe/core':
         specifier: workspace:*
         version: link:../../packages/core

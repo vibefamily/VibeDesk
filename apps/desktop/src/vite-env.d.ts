@@ -69,10 +69,49 @@ interface WalletApiType {
   remove: (args: { walletId: string }) => Promise<{ wallets: WalletMeta[] }>
 }
 
+interface AgentTemplateApiType {
+  id: string
+  name: string
+  description: string
+  icon: string
+  defaultIntervalMs: number
+  defaultSymbols: string[]
+  tools: string[]
+}
+
+interface AgentInstanceApiType {
+  id: string
+  templateId: string
+  name: string
+  icon: string
+  status: 'idle' | 'running' | 'completed' | 'error' | 'stopped'
+  mode: 'llm' | 'rule'
+  symbols: string[]
+  intervalMs: number
+  createdAt: number
+  lastRunAt: number | null
+  lastMessage: string | null
+  messages: { id: string; at: number; kind: string; content: string }[]
+}
+
+interface AgentApiType {
+  listTemplates: () => Promise<AgentTemplateApiType[]>
+  list: () => Promise<AgentInstanceApiType[]>
+  getMode: () => Promise<'llm' | 'rule'>
+  create: (args: { templateId: string; name?: string; symbols?: string[] }) => Promise<AgentInstanceApiType>
+  start: (args: { id: string }) => Promise<AgentInstanceApiType | null>
+  stop: (args: { id: string }) => Promise<AgentInstanceApiType | null>
+  remove: (args: { id: string }) => Promise<AgentInstanceApiType[]>
+  runOnce: (args: { id: string }) => Promise<AgentInstanceApiType | null>
+  setLlmConfig: (config: { baseUrl: string; apiKey: string; model: string } | null) => Promise<{ mode: 'llm' | 'rule' }>
+  getLlmConfig: () => Promise<{ baseUrl: string; apiKey: string; model: string } | null>
+}
+
 interface VibeAPI {
   getAppInfo: () => Promise<{ version: string; name: string; platform: string }>
   ping: () => Promise<string>
   wallet: WalletApiType
+  agent: AgentApiType
   on: (channel: string, callback: (...args: unknown[]) => void) => void
 }
 

@@ -21,9 +21,27 @@ const vibeAPI = {
     revokeAll: () => ipcRenderer.invoke("wallet:revokeAll"),
     remove: (args) => ipcRenderer.invoke("wallet:remove", args)
   },
+  // Agents (managed in the main process)
+  agent: {
+    listTemplates: () => ipcRenderer.invoke("agent:listTemplates"),
+    list: () => ipcRenderer.invoke("agent:list"),
+    getMode: () => ipcRenderer.invoke("agent:getMode"),
+    create: (args) => ipcRenderer.invoke("agent:create", args),
+    start: (args) => ipcRenderer.invoke("agent:start", args),
+    stop: (args) => ipcRenderer.invoke("agent:stop", args),
+    remove: (args) => ipcRenderer.invoke("agent:remove", args),
+    runOnce: (args) => ipcRenderer.invoke("agent:runOnce", args),
+    setLlmConfig: (config) => ipcRenderer.invoke("agent:setLlmConfig", config),
+    getLlmConfig: () => ipcRenderer.invoke("agent:getLlmConfig")
+  },
   // Event listeners
   on: (channel, callback) => {
-    const validChannels = ["market:tick", "order:update", "agent:proposal"];
+    const validChannels = [
+      "market:tick",
+      "order:update",
+      "agent:proposal",
+      "agent:event"
+    ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args));
     }

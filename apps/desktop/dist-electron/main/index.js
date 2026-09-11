@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { webContents, ipcMain, app, BrowserWindow, shell } from "electron";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -3201,8 +3201,8 @@ function asafenumber(value, title = "") {
     throw new RangeError(prefix + "expected safe integer, got " + value);
   }
 }
-function numberToHexUnpadded(num) {
-  const hex = abignumber(num).toString(16);
+function numberToHexUnpadded(num2) {
+  const hex = abignumber(num2).toString(16);
   return hex.length & 1 ? "0" + hex : hex;
 }
 function hexToNumber(hex) {
@@ -3335,7 +3335,7 @@ function mod(a, b) {
   const result = a % b;
   return result >= _0n$4 ? result : b + result;
 }
-function pow(num, power, modulo) {
+function pow(num2, power, modulo) {
   if (modulo <= _1n$3)
     throw new Error("pow: expected modulus > 1, got " + modulo);
   if (typeof power !== "bigint")
@@ -3345,8 +3345,8 @@ function pow(num, power, modulo) {
   if (power === _0n$4)
     return _1n$3;
   if (power === _1n$3)
-    return num;
-  let d = num % modulo;
+    return num2;
+  let d = num2 % modulo;
   if (d < _0n$4)
     d += modulo;
   if (power < POW_WINDOWED_MIN) {
@@ -3573,18 +3573,18 @@ function FpInvertBatch(Fp, nums, passZero = false) {
   abool(passZero, "passZero");
   const F = Fp;
   const inverted = new Array(nums.length).fill(passZero ? F.ZERO : void 0);
-  const multipliedAcc = nums.reduce((acc, num, i) => {
-    if (F.is0(num))
+  const multipliedAcc = nums.reduce((acc, num2, i) => {
+    if (F.is0(num2))
       return acc;
     inverted[i] = acc;
-    return F.mul(acc, num);
+    return F.mul(acc, num2);
   }, F.ONE);
   const invertedAcc = F.inv(multipliedAcc);
-  nums.reduceRight((acc, num, i) => {
-    if (F.is0(num))
+  nums.reduceRight((acc, num2, i) => {
+    if (F.is0(num2))
       return acc;
     inverted[i] = F.mul(acc, inverted[i]);
-    return F.mul(acc, num);
+    return F.mul(acc, num2);
   }, invertedAcc);
   return inverted;
 }
@@ -3650,32 +3650,32 @@ class _Field {
     this.BYTES = nByteLength;
     Object.freeze(this);
   }
-  create(num) {
-    return mod(num, this.ORDER);
+  create(num2) {
+    return mod(num2, this.ORDER);
   }
-  isValid(num) {
-    if (typeof num !== "bigint")
-      throw new TypeError("invalid field element: expected bigint, got " + typeof num);
-    return _0n$4 <= num && num < this.ORDER;
+  isValid(num2) {
+    if (typeof num2 !== "bigint")
+      throw new TypeError("invalid field element: expected bigint, got " + typeof num2);
+    return _0n$4 <= num2 && num2 < this.ORDER;
   }
-  is0(num) {
-    return num === _0n$4;
+  is0(num2) {
+    return num2 === _0n$4;
   }
   // is valid and invertible
-  isValidNot0(num) {
-    return !this.is0(num) && this.isValid(num);
+  isValidNot0(num2) {
+    return !this.is0(num2) && this.isValid(num2);
   }
-  isOdd(num) {
-    return (num & _1n$3) === _1n$3;
+  isOdd(num2) {
+    return (num2 & _1n$3) === _1n$3;
   }
-  neg(num) {
-    return mod(-num, this.ORDER);
+  neg(num2) {
+    return mod(-num2, this.ORDER);
   }
   eql(lhs, rhs) {
     return lhs === rhs;
   }
-  sqr(num) {
-    return mod(num * num, this.ORDER);
+  sqr(num2) {
+    return mod(num2 * num2, this.ORDER);
   }
   add(lhs, rhs) {
     return mod(lhs + rhs, this.ORDER);
@@ -3686,15 +3686,15 @@ class _Field {
   mul(lhs, rhs) {
     return mod(lhs * rhs, this.ORDER);
   }
-  pow(num, power) {
-    return pow(num, power, this.ORDER);
+  pow(num2, power) {
+    return pow(num2, power, this.ORDER);
   }
   div(lhs, rhs) {
     return mod(lhs * invert(rhs, this.ORDER), this.ORDER);
   }
   // Same as above, but doesn't normalize
-  sqrN(num) {
-    return num * num;
+  sqrN(num2) {
+    return num2 * num2;
   }
   addN(lhs, rhs) {
     return lhs + rhs;
@@ -3705,17 +3705,17 @@ class _Field {
   mulN(lhs, rhs) {
     return lhs * rhs;
   }
-  inv(num) {
-    return invert(num, this.ORDER);
+  inv(num2) {
+    return invert(num2, this.ORDER);
   }
-  sqrt(num) {
+  sqrt(num2) {
     let sqrt = FIELD_SQRT.get(this);
     if (!sqrt)
       FIELD_SQRT.set(this, sqrt = FpSqrt(this.ORDER));
-    return sqrt(this, num);
+    return sqrt(this, num2);
   }
-  toBytes(num) {
-    return this.isLE ? numberToBytesLE(num, this.BYTES) : numberToBytesBE(num, this.BYTES);
+  toBytes(num2) {
+    return this.isLE ? numberToBytesLE(num2, this.BYTES) : numberToBytesBE(num2, this.BYTES);
   }
   fromBytes(bytes, skipValidation = false) {
     abytes$1(bytes);
@@ -3773,8 +3773,8 @@ function mapHashToField(key, fieldOrder, isLE2 = false) {
   const minLen = Math.max(getMinHashLength(fieldOrder), 16);
   if (len < minLen || len > 1024)
     throw new Error("expected " + minLen + "-1024 bytes of input, got " + len);
-  const num = isLE2 ? bytesToNumberLE(key) : bytesToNumberBE(key);
-  const reduced = mod(num, fieldOrder - _1n$3) + _1n$3;
+  const num2 = isLE2 ? bytesToNumberLE(key) : bytesToNumberBE(key);
+  const reduced = mod(num2, fieldOrder - _1n$3) + _1n$3;
   return isLE2 ? numberToBytesLE(reduced, fieldLen) : numberToBytesBE(reduced, fieldLen);
 }
 /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
@@ -4059,11 +4059,11 @@ class ScalarMultiplier {
       table[i] = table[i - 1].add(point);
     const windows = Math.ceil(bits / W);
     let acc = this.ZERO;
-    for (let window = windows - 1; window >= 0; window--) {
-      if (window !== windows - 1)
+    for (let window2 = windows - 1; window2 >= 0; window2--) {
+      if (window2 !== windows - 1)
         for (let d = 0; d < W; d++)
           acc = acc.double();
-      const digit = Number(n >> BigInt(window * W) & mask);
+      const digit = Number(n >> BigInt(window2 * W) & mask);
       let sel = table[0];
       for (let i = 1; i < size; i++)
         sel = i === digit ? table[i] : sel;
@@ -4231,12 +4231,12 @@ const _DER = {
   // - add zero byte if exists
   // - if next byte doesn't have a flag, leading zero is not allowed (minimal encoding)
   _int: {
-    encode(num) {
+    encode(num2) {
       const { Err: E } = _DER;
-      abignumber(num);
-      if (num < _0n$2)
+      abignumber(num2);
+      if (num2 < _0n$2)
         throw new E("integer: negative integers are not allowed");
-      let hex = numberToHexUnpadded(num);
+      let hex = numberToHexUnpadded(num2);
       if (Number.parseInt(hex[0], 16) & 8)
         hex = "00" + hex;
       if (hex.length & 1)
@@ -4288,7 +4288,7 @@ const DER = /* @__PURE__ */ (() => {
   return Object.freeze(_DER);
 })();
 /*! noble-curves - MIT License (c) 2022 Paul Miller (paulmillr.com) */
-const divNearest = (num, den) => (num + (num >= 0 ? den : -den) / _2n$2) / den;
+const divNearest = (num2, den) => (num2 + (num2 >= 0 ? den : -den) / _2n$2) / den;
 function _splitEndoScalar(k, basis, n) {
   aInRange("scalar", k, _0n$1, n);
   const [[a1, b1], [a2, b2]] = basis;
@@ -4790,8 +4790,8 @@ function ecdh(Point2, ecdhOpts = {}) {
   });
   function isValidSecretKey(secretKey) {
     try {
-      const num = Fn2.fromBytes(secretKey);
-      return Fn2.isValidNot0(num);
+      const num2 = Fn2.fromBytes(secretKey);
+      return Fn2.isValidNot0(num2);
     } catch (error) {
       return false;
     }
@@ -4879,10 +4879,10 @@ function ecdsa(Point2, hash, ecdsaOpts = {}) {
     const HALF = CURVE_ORDER >> _1n$1;
     return number > HALF;
   }
-  function validateRS(title, num) {
-    if (!Fn2.isValidNot0(num))
+  function validateRS(title, num2) {
+    if (!Fn2.isValidNot0(num2))
       throw new Error(`invalid signature ${title}: out of range 1..Point.Fn.ORDER`);
-    return num;
+    return num2;
   }
   function assertFieldSignIsSupported() {
     if (!Fp.isOdd)
@@ -4994,17 +4994,17 @@ function ecdsa(Point2, hash, ecdsaOpts = {}) {
   const bits2int = opts.bits2int === void 0 ? function bits2int_def(bytes) {
     if (bytes.length > 8192)
       throw new Error("input is too large");
-    const num = bytesToNumberBE(bytes);
+    const num2 = bytesToNumberBE(bytes);
     const delta = bytes.length * 8 - fnBits;
-    return delta > 0 ? num >> BigInt(delta) : num;
+    return delta > 0 ? num2 >> BigInt(delta) : num2;
   } : opts.bits2int;
   const bits2int_modN = opts.bits2int_modN === void 0 ? function bits2int_modN_def(bytes) {
     return Fn2.create(bits2int(bytes));
   } : opts.bits2int_modN;
   const ORDER_MASK = bitMask(fnBits);
-  function int2octets(num) {
-    aInRange("num < 2^" + fnBits, num, _0n$1, ORDER_MASK);
-    return Fn2.toBytes(num);
+  function int2octets(num2) {
+    aInRange("num < 2^" + fnBits, num2, _0n$1, ORDER_MASK);
+    return Fn2.toBytes(num2);
   }
   function validateMsgAndHash(message, prehash) {
     abytes$1(message, void 0, "message");
@@ -6416,6 +6416,2414 @@ class VaultWalletManager {
     });
   }
 }
+function generateId(prefix = "") {
+  return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+class Agent {
+  constructor(config, provider) {
+    __publicField(this, "config");
+    __publicField(this, "provider");
+    __publicField(this, "tools", /* @__PURE__ */ new Map());
+    __publicField(this, "messages", []);
+    __publicField(this, "status", "idle");
+    __publicField(this, "listeners", /* @__PURE__ */ new Set());
+    __publicField(this, "pendingApproval", null);
+    __publicField(this, "abortController", null);
+    this.config = config;
+    this.provider = provider;
+  }
+  /** Register a tool that this agent can use */
+  registerTool(tool) {
+    this.tools.set(tool.name, tool);
+  }
+  /** Register multiple tools */
+  registerTools(tools) {
+    for (const tool of tools) {
+      this.registerTool(tool);
+    }
+  }
+  /** Get available tool definitions */
+  getAvailableTools() {
+    return this.config.tools.map((name) => this.tools.get(name)).filter((t) => t !== void 0);
+  }
+  /** Get current conversation messages */
+  getMessages() {
+    return [...this.messages];
+  }
+  /** Get current run status */
+  getStatus() {
+    return this.status;
+  }
+  /** Subscribe to agent events */
+  onEvent(callback) {
+    this.listeners.add(callback);
+    return () => this.listeners.delete(callback);
+  }
+  /**
+   * Send a user message and run the agent loop.
+   * Returns the final assistant message.
+   */
+  async run(userMessage) {
+    this.abortController = new AbortController();
+    this.setStatus("running");
+    this.pendingApproval = null;
+    this.messages.push({ role: "user", content: userMessage });
+    this.emit({ type: "step", data: {
+      type: "message",
+      content: userMessage,
+      timestamp: Date.now()
+    } });
+    let iterations = 0;
+    const maxIterations = this.config.maxIterations;
+    try {
+      while (iterations < maxIterations) {
+        iterations++;
+        const assistantMsg = await this.provider.chatComplete({
+          messages: this.buildMessagesWithSystemPrompt(),
+          tools: this.getAvailableTools(),
+          model: this.config.model,
+          temperature: this.config.temperature,
+          signal: this.abortController.signal
+        });
+        this.messages.push(assistantMsg);
+        if (!assistantMsg.toolCalls || assistantMsg.toolCalls.length === 0) {
+          this.emit({ type: "step", data: {
+            type: "message",
+            content: assistantMsg.content,
+            timestamp: Date.now()
+          } });
+          this.setStatus("completed");
+          this.emit({ type: "final_message", data: assistantMsg.content });
+          return assistantMsg.content;
+        }
+        const riskyCalls = assistantMsg.toolCalls.filter(
+          (tc) => this.isHighRiskTool(tc.name)
+        );
+        if (riskyCalls.length > 0) {
+          const approval = {
+            id: generateId("apr_"),
+            agentId: this.config.id,
+            conversationId: "default",
+            action: `Execute ${riskyCalls.length} trade action(s)`,
+            reasoning: assistantMsg.content,
+            confidence: 0.8,
+            toolCalls: riskyCalls,
+            riskWarnings: ["This action involves real trading", "Double-check before approving"],
+            timestamp: Date.now()
+          };
+          this.pendingApproval = approval;
+          this.setStatus("awaiting_approval");
+          this.emit({ type: "approval_request", data: approval });
+          return new Promise((resolve, reject) => {
+            const originalApprove = this.approve.bind(this);
+            const originalReject = this.reject.bind(this);
+            this.approve = async () => {
+              this.approve = originalApprove;
+              this.pendingApproval = null;
+              this.setStatus("running");
+              await this.executeToolCalls(assistantMsg.toolCalls);
+              const result = await this.continueLoop(maxIterations - iterations);
+              resolve(result);
+            };
+            this.reject = async (reason) => {
+              this.reject = originalReject;
+              this.pendingApproval = null;
+              this.setStatus("completed");
+              const msg = `Action rejected. ${reason ? `Reason: ${reason}` : ""}`;
+              this.messages.push({ role: "user", content: msg });
+              this.emit({ type: "final_message", data: msg });
+              resolve(msg);
+            };
+          });
+        }
+        await this.executeToolCalls(assistantMsg.toolCalls);
+      }
+      const finalMsg = "Maximum iterations reached. Let me summarize what I found...";
+      this.setStatus("completed");
+      this.emit({ type: "final_message", data: finalMsg });
+      return finalMsg;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      this.setStatus("error");
+      this.emit({ type: "error", data: errorMessage });
+      throw err;
+    }
+  }
+  /**
+   * Approve a pending action (human-in-the-loop).
+   * Note: this method is replaced during an active approval request.
+   */
+  async approve() {
+  }
+  /**
+   * Reject a pending action (human-in-the-loop).
+   * Note: this method is replaced during an active approval request.
+   */
+  async reject(_reason) {
+  }
+  /** Get the pending approval request, if any */
+  getPendingApproval() {
+    return this.pendingApproval;
+  }
+  /** Cancel the current run */
+  cancel() {
+    var _a;
+    (_a = this.abortController) == null ? void 0 : _a.abort();
+    if (this.status === "running") {
+      this.setStatus("error");
+    }
+  }
+  /** Reset the conversation */
+  reset() {
+    this.messages = [];
+    this.status = "idle";
+    this.pendingApproval = null;
+  }
+  // --- Internal methods ---
+  async continueLoop(remainingIterations) {
+    var _a;
+    let iterations = 0;
+    while (iterations < remainingIterations) {
+      iterations++;
+      const assistantMsg = await this.provider.chatComplete({
+        messages: this.buildMessagesWithSystemPrompt(),
+        tools: this.getAvailableTools(),
+        model: this.config.model,
+        temperature: this.config.temperature,
+        signal: (_a = this.abortController) == null ? void 0 : _a.signal
+      });
+      this.messages.push(assistantMsg);
+      if (!assistantMsg.toolCalls || assistantMsg.toolCalls.length === 0) {
+        this.emit({ type: "step", data: {
+          type: "message",
+          content: assistantMsg.content,
+          timestamp: Date.now()
+        } });
+        this.setStatus("completed");
+        this.emit({ type: "final_message", data: assistantMsg.content });
+        return assistantMsg.content;
+      }
+      await this.executeToolCalls(assistantMsg.toolCalls);
+    }
+    const finalMsg = "Maximum iterations reached.";
+    this.setStatus("completed");
+    this.emit({ type: "final_message", data: finalMsg });
+    return finalMsg;
+  }
+  async executeToolCalls(toolCalls) {
+    var _a;
+    for (const toolCall of toolCalls) {
+      const tool = this.tools.get(toolCall.name);
+      if (!tool) {
+        const result = {
+          success: false,
+          content: `Error: Tool '${toolCall.name}' not found.`,
+          error: "Tool not found"
+        };
+        this.appendToolResult(toolCall.id, toolCall.name, result);
+        continue;
+      }
+      this.emit({ type: "step", data: {
+        type: "tool_call",
+        content: `Calling ${toolCall.name}...`,
+        toolName: toolCall.name,
+        toolCallId: toolCall.id,
+        toolArgs: toolCall.arguments,
+        timestamp: Date.now()
+      } });
+      try {
+        const context = {
+          agentId: this.config.id,
+          conversationId: "default",
+          signal: (_a = this.abortController) == null ? void 0 : _a.signal
+        };
+        const result = await tool.execute(toolCall.arguments, context);
+        this.appendToolResult(toolCall.id, toolCall.name, result);
+        this.emit({ type: "step", data: {
+          type: "tool_result",
+          content: result.content,
+          toolName: toolCall.name,
+          toolCallId: toolCall.id,
+          success: result.success,
+          timestamp: Date.now()
+        } });
+      } catch (err) {
+        const errorResult = {
+          success: false,
+          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+          error: err instanceof Error ? err.message : String(err)
+        };
+        this.appendToolResult(toolCall.id, toolCall.name, errorResult);
+        this.emit({ type: "step", data: {
+          type: "tool_result",
+          content: errorResult.content,
+          toolName: toolCall.name,
+          toolCallId: toolCall.id,
+          success: false,
+          timestamp: Date.now()
+        } });
+      }
+    }
+  }
+  appendToolResult(toolCallId, toolName, result) {
+    this.messages.push({
+      role: "tool",
+      toolCallId,
+      content: result.content
+    });
+  }
+  buildMessagesWithSystemPrompt() {
+    const systemMsg = {
+      role: "system",
+      content: this.config.systemPrompt
+    };
+    return [systemMsg, ...this.messages];
+  }
+  isHighRiskTool(toolName) {
+    const highRiskTools = ["place_order", "cancel_order", "transfer", "execute_trade"];
+    return highRiskTools.includes(toolName) || toolName.startsWith("trade_");
+  }
+  setStatus(status) {
+    this.status = status;
+    this.emit({ type: "status_change", data: status });
+  }
+  emit(event) {
+    for (const listener of this.listeners) {
+      listener(event);
+    }
+  }
+}
+function toToolSchemas(tools) {
+  if (!tools || tools.length === 0) return void 0;
+  return tools.map((t) => ({
+    type: "function",
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters
+    }
+  }));
+}
+function parseToolCalls(raw) {
+  if (!raw || raw.length === 0) return void 0;
+  return raw.map((call) => {
+    var _a, _b;
+    const c = call;
+    let args = {};
+    if ((_a = c.function) == null ? void 0 : _a.arguments) {
+      try {
+        args = JSON.parse(c.function.arguments);
+      } catch {
+        args = {};
+      }
+    }
+    return {
+      id: c.id ?? `call_${Math.random().toString(36).slice(2)}`,
+      name: ((_b = c.function) == null ? void 0 : _b.name) ?? "",
+      arguments: args
+    };
+  });
+}
+class OpenAICompatibleProvider {
+  constructor(config) {
+    __publicField(this, "id", "openai-compatible");
+    __publicField(this, "config");
+    this.config = config;
+  }
+  updateConfig(config) {
+    this.config = config;
+  }
+  getConfig() {
+    return { ...this.config };
+  }
+  async chatComplete(params) {
+    var _a, _b;
+    const { messages, tools, model, temperature, signal } = params;
+    const url = `${this.config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+    const body = {
+      model,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content
+      })),
+      temperature: temperature ?? 0.7
+    };
+    const schemas = toToolSchemas(tools);
+    if (schemas) {
+      body.tools = schemas;
+      body.tool_choice = "auto";
+    }
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.config.apiKey}`
+      },
+      body: JSON.stringify(body),
+      signal
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`LLM request failed (${res.status}): ${detail.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    const message = (_b = (_a = data.choices) == null ? void 0 : _a[0]) == null ? void 0 : _b.message;
+    if (!message) {
+      throw new Error("LLM response contained no choices");
+    }
+    return {
+      role: "assistant",
+      content: message.content ?? "",
+      toolCalls: parseToolCalls(message.tool_calls)
+    };
+  }
+}
+class EventBus {
+  constructor() {
+    __publicField(this, "handlers", /* @__PURE__ */ new Map());
+    __publicField(this, "wildcardHandlers", /* @__PURE__ */ new Set());
+  }
+  /**
+   * Subscribe to a specific event type.
+   * Returns an unsubscribe function.
+   */
+  on(type, handler) {
+    if (!this.handlers.has(type)) {
+      this.handlers.set(type, /* @__PURE__ */ new Set());
+    }
+    this.handlers.get(type).add(handler);
+    return () => this.off(type, handler);
+  }
+  /**
+   * Subscribe to all events (wildcard).
+   */
+  onAll(handler) {
+    this.wildcardHandlers.add(handler);
+    return () => this.wildcardHandlers.delete(handler);
+  }
+  /**
+   * Unsubscribe from an event type.
+   */
+  off(type, handler) {
+    var _a;
+    (_a = this.handlers.get(type)) == null ? void 0 : _a.delete(handler);
+  }
+  /**
+   * Emit an event synchronously (fire-and-forget).
+   */
+  emit(event) {
+    for (const handler of this.wildcardHandlers) {
+      this.safeInvoke(handler, event);
+    }
+    const typeHandlers = this.handlers.get(event.type);
+    if (typeHandlers) {
+      for (const handler of typeHandlers) {
+        this.safeInvoke(handler, event);
+      }
+    }
+  }
+  /**
+   * Emit an event and wait for all async handlers to complete.
+   */
+  async emitAsync(event) {
+    const promises = [];
+    for (const handler of this.wildcardHandlers) {
+      const result = handler(event);
+      if (result instanceof Promise) promises.push(result);
+    }
+    const typeHandlers = this.handlers.get(event.type);
+    if (typeHandlers) {
+      for (const handler of typeHandlers) {
+        const result = handler(event);
+        if (result instanceof Promise) promises.push(result);
+      }
+    }
+    await Promise.all(promises);
+  }
+  /**
+   * Remove all handlers.
+   */
+  clear() {
+    this.handlers.clear();
+    this.wildcardHandlers.clear();
+  }
+  safeInvoke(handler, event) {
+    try {
+      const result = handler(event);
+      if (result instanceof Promise) {
+        result.catch((err) => {
+          console.error("[EventBus] async handler error:", err);
+        });
+      }
+    } catch (err) {
+      console.error("[EventBus] handler error:", err);
+    }
+  }
+}
+const eventBus = new EventBus();
+class MarketDataAggregator {
+  constructor() {
+    __publicField(this, "providers", /* @__PURE__ */ new Map());
+  }
+  registerProvider(provider) {
+    if (this.providers.has(provider.id)) {
+      console.warn(`[MarketData] Provider '${provider.id}' already registered, overwriting.`);
+    }
+    this.providers.set(provider.id, provider);
+  }
+  getProvider(id) {
+    return this.providers.get(id);
+  }
+  listProviders() {
+    return Array.from(this.providers.values());
+  }
+  /**
+   * Get tick data from all providers that support the given symbol.
+   * Returns a map of providerId -> TickData.
+   */
+  async getTicksAll(symbol) {
+    const results = /* @__PURE__ */ new Map();
+    const promises = this.listProviders().map(async (provider) => {
+      try {
+        const tick = await provider.getTick(symbol);
+        results.set(provider.id, tick);
+      } catch {
+      }
+    });
+    await Promise.all(promises);
+    return results;
+  }
+  getBestProvider(symbol) {
+    return this.listProviders().at(0);
+  }
+  // --- Convenience pass-through methods (use best provider) ---
+  async getTick(symbol, providerId) {
+    const provider = providerId ? this.getProvider(providerId) : this.getBestProvider(symbol);
+    if (!provider) throw new Error(`No provider available for symbol ${symbol}`);
+    return provider.getTick(symbol);
+  }
+  async getCandles(symbol, timeframe, options, providerId) {
+    const provider = providerId ? this.getProvider(providerId) : this.getBestProvider(symbol);
+    if (!provider) throw new Error(`No provider available for symbol ${symbol}`);
+    return provider.getCandles(symbol, timeframe, options);
+  }
+  async getOrderBook(symbol, limit, providerId) {
+    const provider = providerId ? this.getProvider(providerId) : this.getBestProvider(symbol);
+    if (!provider) throw new Error(`No provider available for symbol ${symbol}`);
+    return provider.getOrderBook(symbol, limit);
+  }
+  async getInstruments(providerId) {
+    if (providerId) {
+      const p = this.getProvider(providerId);
+      if (!p) throw new Error(`Provider ${providerId} not found`);
+      return p.getInstruments();
+    }
+    const all = await Promise.all(this.listProviders().map((p) => p.getInstruments()));
+    return all.flat();
+  }
+  async getRecentTrades(symbol, limit, providerId) {
+    const provider = providerId ? this.getProvider(providerId) : this.getBestProvider(symbol);
+    if (!provider) throw new Error(`No provider available for symbol ${symbol}`);
+    return provider.getRecentTrades(symbol, limit);
+  }
+  /**
+   * Emit a tick event on the global event bus.
+   * Data sources should call this to publish ticks.
+   */
+  publishTick(tick) {
+    eventBus.emit({ type: "tick", data: tick });
+  }
+}
+const ANALYST_SYSTEM_PROMPT = [
+  "You are VibeDesk, a local-first stock market analyst agent.",
+  "You monitor the same stock across multiple independent data sources (Robinhood, Yahoo Finance, Hyperliquid, Binance).",
+  "Your job: compare prices across sources, identify meaningful spreads, consider momentum, and produce a clear recommendation (BUY / SELL / HOLD) with reasons and risks.",
+  "Use the market tools to fetch live data. Never invent prices - only report what the tools return.",
+  "If a source is unavailable, say so explicitly. Mention the wallet this recommendation applies to only if an authorized wallet exists.",
+  "Keep the final answer concise and structured."
+].join("\n");
+const NEWS_SYSTEM_PROMPT = [
+  "You are VibeDesk, a local-first news collection agent.",
+  "Your job: fetch the latest public headlines for the tracked symbols and summarize what could matter for their price.",
+  "Use the fetch_news tool. Report the headline, source time, and a one-line takeaway per item.",
+  "Never fabricate headlines - only report what the tool returns.",
+  "Keep the final summary tight and skimmable."
+].join("\n");
+const STOCK_ANALYST_TEMPLATE = {
+  id: "stock-analyst",
+  name: "Stock Analyst",
+  description: "Monitors tracked stocks across all data sources, compares prices and emits BUY / SELL / HOLD recommendations with reasons and risks.",
+  icon: "📈",
+  defaultIntervalMs: 3e5,
+  defaultSymbols: ["TSLA", "NVDA"],
+  tools: ["get_price", "compare_prices", "list_authorized_wallets"],
+  buildConfig: (id, name, model) => ({
+    id,
+    name,
+    systemPrompt: ANALYST_SYSTEM_PROMPT,
+    model,
+    maxIterations: 6,
+    temperature: 0.4,
+    tools: ["get_price", "compare_prices", "list_authorized_wallets"]
+  }),
+  buildPrompt: (symbols) => [
+    `Analyze the following stocks now: ${symbols.join(", ")}.`,
+    "For each symbol: fetch live prices across sources, compare them, note the cross-source spread,",
+    "then give a recommendation with reasons and risks."
+  ].join(" ")
+};
+const NEWS_COLLECTOR_TEMPLATE = {
+  id: "news-collector",
+  name: "News Collector",
+  description: "Pulls the latest public headlines for tracked symbols and summarizes the ones that could move the price.",
+  icon: "📰",
+  defaultIntervalMs: 6e5,
+  defaultSymbols: ["TSLA", "NVDA"],
+  tools: ["fetch_news"],
+  buildConfig: (id, name, model) => ({
+    id,
+    name,
+    systemPrompt: NEWS_SYSTEM_PROMPT,
+    model,
+    maxIterations: 4,
+    temperature: 0.3,
+    tools: ["fetch_news"]
+  }),
+  buildPrompt: (symbols) => `Fetch and summarize the latest headlines for: ${symbols.join(", ")}.`
+};
+const BUILTIN_TEMPLATES = [
+  STOCK_ANALYST_TEMPLATE,
+  NEWS_COLLECTOR_TEMPLATE
+];
+function createMarketTools(market) {
+  return [
+    {
+      name: "get_price",
+      description: "Get the current price and 24h stats for a trading symbol (e.g., BTCUSDT, ETHUSDT).",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: {
+            type: "string",
+            description: "Trading pair symbol, e.g., BTCUSDT, ETHUSDT, SOLUSDT"
+          },
+          provider: {
+            type: "string",
+            description: "Optional data provider ID (e.g., binance). Defaults to best available."
+          }
+        },
+        required: ["symbol"]
+      },
+      execute: async (args) => {
+        const symbol = String(args.symbol ?? "").toUpperCase();
+        if (!symbol) {
+          return { success: false, content: "Error: symbol is required." };
+        }
+        try {
+          const tick = await market.getTick(symbol, args.provider);
+          return {
+            success: true,
+            content: `Price for ${tick.symbol}:
+  Last: ${tick.lastPrice}
+  Bid: ${tick.bidPrice}
+  Ask: ${tick.askPrice}
+  24h Change: ${((tick.change24h ?? 0) * 100).toFixed(2)}%
+  24h Volume: ${tick.volume24h ?? "N/A"}`,
+            data: tick
+          };
+        } catch (err) {
+          return {
+            success: false,
+            content: `Error fetching price for ${symbol}: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
+      }
+    },
+    {
+      name: "get_orderbook",
+      description: "Get the current order book (bids and asks) for a symbol.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "Trading pair symbol" },
+          limit: { type: "number", description: "Number of levels to return (default 20)" }
+        },
+        required: ["symbol"]
+      },
+      execute: async (args) => {
+        const symbol = String(args.symbol ?? "").toUpperCase();
+        const limit = Number(args.limit ?? 20);
+        try {
+          const book = await market.getOrderBook(symbol, limit);
+          const topBids = book.bids.slice(0, 5);
+          const topAsks = book.asks.slice(0, 5);
+          const fmt = (p) => `${p.price.toFixed(2)} @ ${p.quantity.toFixed(4)}`;
+          return {
+            success: true,
+            content: `Order book for ${symbol} (top 5):
+Bids:
+${topBids.map((b) => `  ${fmt(b)}`).join("\n")}
+Asks:
+${topAsks.map((a) => `  ${fmt(a)}`).join("\n")}`,
+            data: book
+          };
+        } catch (err) {
+          return {
+            success: false,
+            content: `Error fetching order book: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
+      }
+    },
+    {
+      name: "get_candles",
+      description: "Get historical K-line / candle data for a symbol and timeframe.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: { type: "string", description: "Trading pair symbol" },
+          timeframe: {
+            type: "string",
+            description: "Timeframe: 1m, 5m, 15m, 1h, 4h, 1d",
+            enum: ["1m", "5m", "15m", "1h", "4h", "1d"]
+          },
+          limit: { type: "number", description: "Number of candles (default 100)" }
+        },
+        required: ["symbol"]
+      },
+      execute: async (args) => {
+        const symbol = String(args.symbol ?? "").toUpperCase();
+        const timeframe = args.timeframe ?? "1h";
+        const limit = Number(args.limit ?? 100);
+        try {
+          const candles = await market.getCandles(symbol, timeframe, { limit });
+          const recent = candles.slice(-5);
+          return {
+            success: true,
+            content: `${candles.length} candles for ${symbol} ${timeframe}.
+Last 5 closes:
+` + recent.map(
+              (c) => `  ${new Date(c.timestamp).toISOString()}: O=${c.open.toFixed(2)} H=${c.high.toFixed(2)} L=${c.low.toFixed(2)} C=${c.close.toFixed(2)}`
+            ).join("\n"),
+            data: candles
+          };
+        } catch (err) {
+          return {
+            success: false,
+            content: `Error fetching candles: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
+      }
+    },
+    {
+      name: "compare_prices",
+      description: "Compare the price of a symbol across all available data sources / exchanges. Useful for finding price differences and arbitrage opportunities.",
+      parameters: {
+        type: "object",
+        properties: {
+          symbol: {
+            type: "string",
+            description: "Trading pair symbol to compare across providers"
+          }
+        },
+        required: ["symbol"]
+      },
+      execute: async (args) => {
+        const symbol = String(args.symbol ?? "").toUpperCase();
+        try {
+          const ticks = await market.getTicksAll(symbol);
+          if (ticks.size === 0) {
+            return { success: false, content: `No price data found for ${symbol} across any provider.` };
+          }
+          const entries = Array.from(ticks.entries()).sort(
+            (a, b) => a[1].lastPrice - b[1].lastPrice
+          );
+          const lowest = entries[0];
+          const highest = entries[entries.length - 1];
+          if (!lowest || !highest) {
+            return { success: false, content: `No price data found for ${symbol} across any provider.` };
+          }
+          const spread = highest[1].lastPrice - lowest[1].lastPrice;
+          const spreadPct = spread / lowest[1].lastPrice * 100;
+          let content = `Price comparison for ${symbol}:
+
+`;
+          for (const [providerId, tick] of entries) {
+            content += `  ${providerId}: $${tick.lastPrice.toFixed(2)} (${((tick.change24h ?? 0) * 100).toFixed(2)}% 24h)
+`;
+          }
+          content += `
+Spread: $${spread.toFixed(2)} (${spreadPct.toFixed(2)}%)
+`;
+          content += `Lowest: ${lowest[0]} @ $${lowest[1].lastPrice.toFixed(2)}
+`;
+          content += `Highest: ${highest[0]} @ $${highest[1].lastPrice.toFixed(2)}`;
+          return { success: true, content, data: Object.fromEntries(ticks) };
+        } catch (err) {
+          return {
+            success: false,
+            content: `Error comparing prices: ${err instanceof Error ? err.message : String(err)}`
+          };
+        }
+      }
+    }
+  ];
+}
+function parseRssTitles(xml, limit) {
+  var _a, _b, _c, _d, _e, _f;
+  const items = [];
+  const itemRe = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRe.exec(xml)) !== null && items.length < limit) {
+    const block = match[1];
+    const title = (_b = (_a = block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)) == null ? void 0 : _a[1]) == null ? void 0 : _b.trim();
+    const link = (_d = (_c = block.match(/<link>(.*?)<\/link>/)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim();
+    const pub = ((_f = (_e = block.match(/<pubDate>(.*?)<\/pubDate>/)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim()) ?? null;
+    if (title) {
+      items.push({ title: title.replace(/<!\[CDATA\[|\]\]>/g, ""), link: link ?? "", publishedAt: pub });
+    }
+  }
+  return items;
+}
+function createNewsTool() {
+  return {
+    name: "fetch_news",
+    description: "Fetch the latest public headlines for a stock symbol (e.g., TSLA, NVDA) from a free RSS feed. Returns the top headlines with timestamps.",
+    parameters: {
+      type: "object",
+      properties: {
+        symbol: {
+          type: "string",
+          description: "Stock ticker symbol, e.g., TSLA, NVDA, AAPL"
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of headlines to return (default 5)"
+        }
+      },
+      required: ["symbol"]
+    },
+    execute: async (args) => {
+      const symbol = String(args.symbol ?? "").toUpperCase().trim();
+      const limit = Math.min(10, Math.max(1, Number(args.limit) || 5));
+      if (!/^[A-Z.]{1,10}$/.test(symbol)) {
+        return { success: false, content: `Invalid symbol: ${symbol}` };
+      }
+      try {
+        const url = `https://finance.yahoo.com/rss/headline?s=${encodeURIComponent(symbol)}`;
+        const res = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0 (VibeDesk Agent)" }
+        });
+        if (!res.ok) {
+          return { success: false, content: `News feed returned HTTP ${res.status}` };
+        }
+        const xml = await res.text();
+        const items = parseRssTitles(xml, limit);
+        if (items.length === 0) {
+          return { success: true, content: `No recent headlines found for ${symbol}.` };
+        }
+        const lines = items.map(
+          (n, i) => `${i + 1}. ${n.title}${n.publishedAt ? ` (${n.publishedAt})` : ""}`
+        );
+        return {
+          success: true,
+          content: `Latest headlines for ${symbol}:
+${lines.join("\n")}`,
+          data: items
+        };
+      } catch (err) {
+        return {
+          success: false,
+          content: `News fetch failed: ${err instanceof Error ? err.message : String(err)}`
+        };
+      }
+    }
+  };
+}
+function createWalletReadTool(access) {
+  return {
+    name: "list_authorized_wallets",
+    description: "List the wallets the user has authorized for this agent (addresses only). Use this to know which wallet a recommendation would apply to.",
+    parameters: {
+      type: "object",
+      properties: {}
+    },
+    execute: async () => {
+      const wallets = access.listAuthorizedWallets();
+      if (wallets.length === 0) {
+        return {
+          success: true,
+          content: "No authorized wallets. The user must grant access in the Wallets view first.",
+          data: []
+        };
+      }
+      const lines = wallets.map((w) => `- ${w.name}: ${w.address}`);
+      return {
+        success: true,
+        content: `Authorized wallets:
+${lines.join("\n")}`,
+        data: wallets
+      };
+    }
+  };
+}
+const SPREAD_WATCH_THRESHOLD_PCT = 0.3;
+const MOVE_WATCH_THRESHOLD_PCT = 2.5;
+function analyzeStock(symbol, ticks) {
+  const sources = Array.from(ticks.values()).filter((t) => t.lastPrice > 0);
+  const now = Date.now();
+  if (sources.length === 0) {
+    return {
+      symbol,
+      action: "HOLD",
+      confidence: 0.3,
+      summary: `No live price sources for ${symbol}.`,
+      reasons: ["All configured sources are unavailable for this symbol."],
+      risks: ["Cannot assess the market without price data."],
+      spreadPct: null,
+      change24hPct: null,
+      sourceCount: 0,
+      analyzedAt: now
+    };
+  }
+  const prices = sources.map((t) => t.lastPrice);
+  const low = Math.min(...prices);
+  const high = Math.max(...prices);
+  const spreadPct = low > 0 ? (high - low) / low * 100 : 0;
+  const primary = sources[0];
+  const change24hPct = primary.change24h != null ? primary.change24h * 100 : null;
+  const reasons = [];
+  const risks = [];
+  const summaryParts = [];
+  summaryParts.push(
+    `${sourceCountLabel(sources.length)} live sources: ${prices.map((p) => `$${p.toFixed(2)}`).join(" / ")}`
+  );
+  if (sources.length > 1) {
+    summaryParts.push(`spread ${spreadPct.toFixed(2)}%`);
+  }
+  if (change24hPct != null) {
+    summaryParts.push(`24h ${change24hPct >= 0 ? "+" : ""}${change24hPct.toFixed(2)}%`);
+  }
+  let action = "HOLD";
+  let confidence = 0.5;
+  if (sources.length > 1 && spreadPct >= SPREAD_WATCH_THRESHOLD_PCT) {
+    reasons.push(
+      `Cross-source spread is ${spreadPct.toFixed(2)}% — the highest and lowest venues disagree by more than the watch threshold.`
+    );
+    reasons.push(`Cheapest venue: $${low.toFixed(2)}. Most expensive venue: $${high.toFixed(2)}.`);
+    reasons.push("In a live product this is the candidate for an arbitrage-aware strategy.");
+    risks.push("A wide spread may reflect stale quotes or thin venues, not a real edge.");
+    action = "HOLD";
+    confidence = 0.6;
+  } else if (sources.length > 1) {
+    reasons.push(
+      `Cross-source spread is ${spreadPct.toFixed(2)}% — venues agree closely.`
+    );
+  }
+  if (change24hPct != null) {
+    if (change24hPct >= MOVE_WATCH_THRESHOLD_PCT) {
+      reasons.push(
+        `Strong upward momentum: +${change24hPct.toFixed(2)}% over 24h.`
+      );
+      risks.push("Chasing strength risks buying near a short-term top; expect pullbacks.");
+      action = change24hPct >= MOVE_WATCH_THRESHOLD_PCT * 2 ? "HOLD" : "BUY";
+      confidence = 0.55;
+    } else if (change24hPct <= -MOVE_WATCH_THRESHOLD_PCT) {
+      reasons.push(
+        `Downward pressure: ${change24hPct.toFixed(2)}% over 24h.`
+      );
+      risks.push("A falling market can fall further; do not catch a falling knife without a stop.");
+      action = change24hPct <= -MOVE_WATCH_THRESHOLD_PCT * 2 ? "HOLD" : "SELL";
+      confidence = 0.55;
+    } else {
+      reasons.push(
+        `24h change ${change24hPct >= 0 ? "+" : ""}${change24hPct.toFixed(2)}% is within the neutral band.`
+      );
+    }
+  }
+  const summary = `${symbol}: ${action} (${summaryParts.join(" · ")})`;
+  return {
+    symbol,
+    action,
+    confidence,
+    summary,
+    reasons,
+    risks,
+    spreadPct: sources.length > 1 ? spreadPct : null,
+    change24hPct,
+    sourceCount: sources.length,
+    analyzedAt: now
+  };
+}
+function sourceCountLabel(count) {
+  return count === 1 ? "1 source" : `${count} sources`;
+}
+const MAX_MESSAGES = 60;
+class AgentManager {
+  constructor(options) {
+    __publicField(this, "templates", /* @__PURE__ */ new Map());
+    __publicField(this, "agents", /* @__PURE__ */ new Map());
+    __publicField(this, "listeners", /* @__PURE__ */ new Set());
+    __publicField(this, "market");
+    __publicField(this, "walletAccess");
+    __publicField(this, "llmProvider", null);
+    this.market = options.market;
+    this.walletAccess = options.walletAccess;
+    for (const t of BUILTIN_TEMPLATES) {
+      this.registerTemplate(t);
+    }
+  }
+  // --- Templates ---
+  registerTemplate(template) {
+    this.templates.set(template.id, template);
+  }
+  listTemplates() {
+    return Array.from(this.templates.values());
+  }
+  getTemplate(id) {
+    return this.templates.get(id);
+  }
+  // --- LLM configuration ---
+  /** Configure (or clear) the OpenAI-compatible LLM provider. */
+  setLlmConfig(config) {
+    if (!config || !config.apiKey || !config.baseUrl) {
+      this.llmProvider = null;
+      return;
+    }
+    if (this.llmProvider) {
+      this.llmProvider.updateConfig(config);
+    } else {
+      this.llmProvider = new OpenAICompatibleProvider(config);
+    }
+  }
+  getLlmConfig() {
+    var _a;
+    return ((_a = this.llmProvider) == null ? void 0 : _a.getConfig()) ?? null;
+  }
+  getMode() {
+    return this.llmProvider ? "llm" : "rule";
+  }
+  // --- Instance lifecycle ---
+  create(templateId, options = {}) {
+    var _a;
+    const template = this.templates.get(templateId);
+    if (!template) {
+      throw new Error(`Unknown agent template: ${templateId}`);
+    }
+    const id = generateId("agt_");
+    const name = options.name ?? `${template.name} ${this.agents.size + 1}`;
+    const symbols = ((_a = options.symbols) == null ? void 0 : _a.length) ? options.symbols.map((s) => s.toUpperCase()) : [...template.defaultSymbols];
+    const view = {
+      id,
+      templateId,
+      name,
+      icon: template.icon,
+      status: "idle",
+      mode: this.getMode(),
+      symbols,
+      intervalMs: template.defaultIntervalMs,
+      createdAt: Date.now(),
+      lastRunAt: null,
+      lastMessage: null,
+      messages: []
+    };
+    const managed = {
+      template,
+      view,
+      agent: null,
+      timer: null,
+      symbols,
+      running: false
+    };
+    if (this.llmProvider) {
+      managed.agent = this.buildAgent(managed);
+    }
+    this.agents.set(id, managed);
+    return view;
+  }
+  buildAgent(managed) {
+    const { template, view } = managed;
+    const config = template.buildConfig(view.id, view.name, this.llmProvider.getConfig().model);
+    const agent = new Agent(config, this.llmProvider);
+    const tools = [
+      ...createMarketTools(this.market),
+      ...this.walletAccess ? [createWalletReadTool(this.walletAccess)] : [],
+      createNewsTool()
+    ];
+    agent.registerTools(tools);
+    agent.onEvent((event) => {
+      if (event.type === "step") {
+        const step = event.data;
+        this.pushMessage(view.id, { kind: "step", content: step.content, at: step.timestamp });
+      } else if (event.type === "final_message") {
+        this.pushMessage(view.id, { kind: "message", content: String(event.data), at: Date.now() });
+      } else if (event.type === "error") {
+        this.emit({ type: "error", agentId: view.id, message: String(event.data), at: Date.now() });
+      }
+    });
+    return agent;
+  }
+  start(id) {
+    const managed = this.agents.get(id);
+    if (!managed) throw new Error(`Unknown agent: ${id}`);
+    if (managed.timer) return;
+    void this.runOnce(id);
+    managed.timer = setInterval(() => {
+      void this.runOnce(id);
+    }, managed.template.defaultIntervalMs);
+  }
+  /** Run one analysis cycle now (used by start and manual triggers). */
+  async runOnce(id) {
+    const managed = this.agents.get(id);
+    if (!managed || managed.running) return;
+    managed.running = true;
+    managed.view.status = "running";
+    managed.view.lastRunAt = Date.now();
+    this.emit({ type: "status", agentId: id, status: "running", at: Date.now() });
+    try {
+      const output = await this.executeCycle(managed);
+      managed.view.lastMessage = output;
+      managed.view.status = "completed";
+      this.emit({ type: "status", agentId: id, status: "completed", at: Date.now() });
+      this.pushMessage(id, { kind: "message", content: output, at: Date.now() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      managed.view.status = "error";
+      this.emit({ type: "status", agentId: id, status: "error", at: Date.now() });
+      this.emit({ type: "error", agentId: id, message, at: Date.now() });
+      this.pushMessage(id, { kind: "error", content: message, at: Date.now() });
+    } finally {
+      managed.running = false;
+    }
+  }
+  async executeCycle(managed) {
+    const { template, symbols } = managed;
+    if (managed.agent) {
+      return managed.agent.run(template.buildPrompt(symbols));
+    }
+    const parts = [];
+    for (const symbol of symbols) {
+      let ticks = /* @__PURE__ */ new Map();
+      try {
+        ticks = await this.market.getTicksAll(symbol);
+      } catch {
+        ticks = /* @__PURE__ */ new Map();
+      }
+      const analysis = analyzeStock(symbol, ticks);
+      parts.push(formatAnalysis(analysis));
+    }
+    return parts.join("\n\n");
+  }
+  stop(id) {
+    var _a;
+    const managed = this.agents.get(id);
+    if (!managed) return;
+    if (managed.timer) {
+      clearInterval(managed.timer);
+      managed.timer = null;
+    }
+    (_a = managed.agent) == null ? void 0 : _a.cancel();
+    managed.view.status = "stopped";
+    this.emit({ type: "status", agentId: id, status: "stopped", at: Date.now() });
+  }
+  remove(id) {
+    this.stop(id);
+    this.agents.delete(id);
+  }
+  get(id) {
+    var _a;
+    return ((_a = this.agents.get(id)) == null ? void 0 : _a.view) ?? null;
+  }
+  list() {
+    return Array.from(this.agents.values()).map((m) => m.view);
+  }
+  /** Set the polling interval of an existing agent. */
+  setIntervalMs(id, intervalMs) {
+    const managed = this.agents.get(id);
+    if (!managed) return;
+    managed.template = { ...managed.template, defaultIntervalMs: intervalMs };
+    managed.view.intervalMs = intervalMs;
+    if (managed.timer) {
+      clearInterval(managed.timer);
+      managed.timer = setInterval(() => void this.runOnce(id), intervalMs);
+    }
+  }
+  // --- Events ---
+  onEvent(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  emit(event) {
+    for (const listener of this.listeners) {
+      try {
+        listener(event);
+      } catch {
+      }
+    }
+  }
+  pushMessage(agentId, msg) {
+    const managed = this.agents.get(agentId);
+    if (!managed) return;
+    const entry = {
+      id: generateId("msg_"),
+      at: msg.at ?? Date.now(),
+      kind: msg.kind,
+      content: msg.content
+    };
+    managed.view.messages.push(entry);
+    if (managed.view.messages.length > MAX_MESSAGES) {
+      managed.view.messages.splice(0, managed.view.messages.length - MAX_MESSAGES);
+    }
+    if (msg.kind === "step") {
+      this.emit({ type: "step", agentId, content: msg.content, at: entry.at });
+    } else if (msg.kind === "error") {
+      this.emit({ type: "error", agentId, message: msg.content, at: entry.at });
+    } else {
+      this.emit({ type: "message", agentId, content: msg.content, at: entry.at });
+    }
+  }
+}
+function formatAnalysis(a) {
+  const lines = [
+    `${a.symbol}: ${a.action} (confidence ${Math.round(a.confidence * 100)}%)`,
+    a.summary,
+    "Reasons:",
+    ...a.reasons.map((r) => `  - ${r}`)
+  ];
+  if (a.risks.length > 0) {
+    lines.push("Risks:");
+    lines.push(...a.risks.map((r) => `  - ${r}`));
+  }
+  return lines.join("\n");
+}
+class WebSocketManager {
+  constructor(url) {
+    __publicField(this, "url");
+    __publicField(this, "ws", null);
+    __publicField(this, "subscriptions", /* @__PURE__ */ new Map());
+    __publicField(this, "reconnectAttempts", 0);
+    __publicField(this, "maxReconnectAttempts", 10);
+    __publicField(this, "reconnectDelay", 1e3);
+    __publicField(this, "shouldReconnect", true);
+    __publicField(this, "openResolver", null);
+    __publicField(this, "onOpenCallbacks", null);
+    __publicField(this, "_isConnected", false);
+    this.url = url;
+  }
+  /**
+   * Connect to the WebSocket server. */
+  async connect() {
+    this.shouldReconnect = true;
+    await this.doConnect();
+    return new Promise((resolve) => {
+      this.openResolver = resolve;
+    });
+  }
+  doConnect() {
+    if (typeof window !== "undefined" && "WebSocket" in window) {
+      this.ws = new window.WebSocket(this.url);
+    } else {
+      const WS = globalThis.WebSocket;
+      if (WS) {
+        this.ws = new WS(this.url);
+      } else {
+        throw new Error("WebSocket not available in this environment");
+      }
+    }
+    this.ws.onopen = () => {
+      this.reconnectAttempts = 0;
+      if (this.openResolver) {
+        this.openResolver();
+        this.openResolver = null;
+      }
+      if (this.onOpenCallbacks) {
+        this.onOpenCallbacks();
+      }
+      this.resubscribeAll();
+    };
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleMessage(data);
+      } catch {
+      }
+    };
+    this.ws.onclose = () => {
+      this._isConnected = false;
+      if (this.shouldReconnect) {
+        this.scheduleReconnect();
+      }
+    };
+    this.ws.onerror = () => {
+    };
+  }
+  get isConnected() {
+    var _a;
+    return this._isConnected && ((_a = this.ws) == null ? void 0 : _a.readyState) === WebSocket.OPEN;
+  }
+  scheduleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error("[WebSocket] Max reconnect attempts reached");
+      return;
+    }
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
+    this.reconnectAttempts++;
+    console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    setTimeout(() => this.doConnect(), delay);
+  }
+  /**
+   * Register a callback for a channel.
+   * Returns an unsubscribe function.
+   */
+  subscribe(channel, callback) {
+    if (!this.subscriptions.has(channel)) {
+      this.subscriptions.set(channel, { channel, callbacks: /* @__PURE__ */ new Set() });
+      this.sendSubscribe(channel);
+    }
+    this.subscriptions.get(channel).callbacks.add(callback);
+    return () => {
+      const sub = this.subscriptions.get(channel);
+      if (sub) {
+        sub.callbacks.delete(callback);
+        if (sub.callbacks.size === 0) {
+          this.sendUnsubscribe(channel);
+          this.subscriptions.delete(channel);
+        }
+      }
+    };
+  }
+  /**
+   * Resolve a subscription by channel key. Subclasses use this when
+   * routing protocol-specific push messages to callbacks.
+   */
+  getSubscription(channel) {
+    return this.subscriptions.get(channel);
+  }
+  /**
+   * Send a JSON message over the WebSocket.
+   */
+  send(data) {
+    var _a;
+    if (((_a = this.ws) == null ? void 0 : _a.readyState) === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    }
+  }
+  /**
+   * Disconnect from the WebSocket server.
+   */
+  disconnect() {
+    var _a;
+    this.shouldReconnect = false;
+    (_a = this.ws) == null ? void 0 : _a.close();
+    this.ws = null;
+    this.subscriptions.clear();
+  }
+  /**
+   * Called when the connection opens - override in subclasses to handle specific message formats.
+   */
+  handleMessage(data) {
+    const msg = data;
+    if (msg.e && msg.data !== void 0) {
+      const sub = this.subscriptions.get(msg.e);
+      if (sub) {
+        for (const cb of sub.callbacks) {
+          cb(msg.data);
+        }
+      }
+    }
+  }
+  /**
+   * Send a subscribe message - override in subclasses for specific protocol.
+   */
+  sendSubscribe(channel) {
+    this.send({ method: "SUBSCRIBE", params: [channel], id: Date.now() });
+  }
+  /**
+   * Send an unsubscribe message - override in subclasses for specific protocol.
+   */
+  sendUnsubscribe(channel) {
+    this.send({ method: "UNSUBSCRIBE", params: [channel], id: Date.now() });
+  }
+  resubscribeAll() {
+    for (const channel of this.subscriptions.keys()) {
+      this.sendSubscribe(channel);
+    }
+  }
+}
+const REST_BASE$1 = "https://api.binance.com";
+const WS_BASE$1 = "wss://stream.binance.com:9443/ws";
+class BinanceSpotProvider {
+  constructor() {
+    __publicField(this, "id", "binance");
+    __publicField(this, "_isConnected", false);
+    __publicField(this, "ws", null);
+    __publicField(this, "instrumentCache", []);
+    __publicField(this, "instrumentCacheTime", 0);
+    __publicField(this, "cacheTtlMs", 36e5);
+  }
+  // 1 hour
+  get isConnected() {
+    return this._isConnected;
+  }
+  async connect() {
+    this.ws = new WebSocketManager(WS_BASE$1);
+    try {
+      await Promise.race([
+        this.ws.connect(),
+        new Promise(
+          (_, reject) => setTimeout(() => reject(new Error("Binance WS connect timeout")), 5e3)
+        )
+      ]);
+      this._isConnected = true;
+    } catch {
+      this._isConnected = true;
+    }
+  }
+  async disconnect() {
+    var _a;
+    (_a = this.ws) == null ? void 0 : _a.disconnect();
+    this.ws = null;
+    this._isConnected = false;
+  }
+  // --- Instrument metadata ---
+  async getInstruments() {
+    const now = Date.now();
+    if (this.instrumentCache.length > 0 && now - this.instrumentCacheTime < this.cacheTtlMs) {
+      return this.instrumentCache;
+    }
+    const response = await fetch(`${REST_BASE$1}/api/v3/exchangeInfo`);
+    if (!response.ok) {
+      throw new Error(`Binance exchangeInfo failed: ${response.status}`);
+    }
+    const data = await response.json();
+    const instruments = data.symbols.filter((s) => s.status === "TRADING" && s.isSpotTradingAllowed).map((s) => {
+      const priceFilter = s.filters.find((f) => f.filterType === "PRICE_FILTER");
+      const lotFilter = s.filters.find((f) => f.filterType === "LOT_SIZE");
+      const minNotionalFilter = s.filters.find((f) => f.filterType === "MIN_NOTIONAL");
+      const pricePrecision = priceFilter ? this.countDecimals(priceFilter.tickSize) : s.quoteAssetPrecision;
+      const qtyPrecision = lotFilter ? this.countDecimals(lotFilter.stepSize) : s.baseAssetPrecision;
+      return {
+        symbol: s.symbol,
+        exchange: this.id,
+        baseAsset: s.baseAsset,
+        quoteAsset: s.quoteAsset,
+        type: "spot",
+        pricePrecision,
+        quantityPrecision: qtyPrecision,
+        minQuantity: lotFilter ? parseFloat(lotFilter.stepSize) : void 0,
+        minNotional: minNotionalFilter ? parseFloat(minNotionalFilter.minNotional) : void 0
+      };
+    });
+    this.instrumentCache = instruments;
+    this.instrumentCacheTime = now;
+    return instruments;
+  }
+  async getInstrument(symbol) {
+    const instruments = await this.getInstruments();
+    return instruments.find((i) => i.symbol === symbol) ?? null;
+  }
+  // --- REST data ---
+  async getTick(symbol) {
+    const response = await fetch(`${REST_BASE$1}/api/v3/ticker/24hr?symbol=${symbol}`);
+    if (!response.ok) {
+      throw new Error(`Binance ticker 24hr failed for ${symbol}: ${response.status}`);
+    }
+    const data = await response.json();
+    return this.mapTicker(data);
+  }
+  async getOrderBook(symbol, limit = 20) {
+    const response = await fetch(
+      `${REST_BASE$1}/api/v3/depth?symbol=${symbol}&limit=${limit}`
+    );
+    if (!response.ok) {
+      throw new Error(`Binance depth failed for ${symbol}: ${response.status}`);
+    }
+    const data = await response.json();
+    return {
+      symbol,
+      timestamp: Date.now(),
+      bids: data.bids.map(([price, qty]) => ({
+        price: parseFloat(price),
+        quantity: parseFloat(qty)
+      })),
+      asks: data.asks.map(([price, qty]) => ({
+        price: parseFloat(price),
+        quantity: parseFloat(qty)
+      }))
+    };
+  }
+  async getCandles(symbol, timeframe, options) {
+    const params = new URLSearchParams({
+      symbol,
+      interval: timeframe
+    });
+    if (options == null ? void 0 : options.limit) params.set("limit", String(options.limit));
+    if (options == null ? void 0 : options.startTime) params.set("startTime", String(options.startTime));
+    if (options == null ? void 0 : options.endTime) params.set("endTime", String(options.endTime));
+    const response = await fetch(`${REST_BASE$1}/api/v3/klines?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Binance klines failed for ${symbol}: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.map((k) => ({
+      timestamp: k[0],
+      open: parseFloat(k[1]),
+      high: parseFloat(k[2]),
+      low: parseFloat(k[3]),
+      close: parseFloat(k[4]),
+      volume: parseFloat(k[5])
+    }));
+  }
+  async getRecentTrades(symbol, limit = 500) {
+    const response = await fetch(
+      `${REST_BASE$1}/api/v3/trades?symbol=${symbol}&limit=${limit}`
+    );
+    if (!response.ok) {
+      throw new Error(`Binance trades failed for ${symbol}: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.map((t) => ({
+      id: String(t.id),
+      symbol,
+      price: parseFloat(t.price),
+      quantity: parseFloat(t.qty),
+      side: t.isBuyerMaker ? "sell" : "buy",
+      timestamp: t.time
+    }));
+  }
+  // --- WebSocket subscriptions ---
+  async subscribeTicks(symbol, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `${symbol.toLowerCase()}@ticker`;
+    return ws.subscribe(channel, (raw) => {
+      const data = raw;
+      callback({
+        timestamp: data.E,
+        symbol: data.s,
+        bidPrice: 0,
+        // mini ticker doesn't have bid/ask
+        bidSize: 0,
+        askPrice: 0,
+        askSize: 0,
+        lastPrice: parseFloat(data.c),
+        change24h: parseFloat(data.o) > 0 ? (parseFloat(data.c) - parseFloat(data.o)) / parseFloat(data.o) : 0,
+        volume24h: parseFloat(data.v)
+      });
+    });
+  }
+  async subscribeCandles(symbol, timeframe, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `${symbol.toLowerCase()}@kline_${timeframe}`;
+    return ws.subscribe(channel, (raw) => {
+      const data = raw;
+      const k = data.k;
+      callback(
+        {
+          timestamp: k.t,
+          open: parseFloat(k.o),
+          high: parseFloat(k.h),
+          low: parseFloat(k.l),
+          close: parseFloat(k.c),
+          volume: parseFloat(k.v)
+        },
+        symbol
+      );
+    });
+  }
+  async subscribeOrderBook(symbol, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `${symbol.toLowerCase()}@depth20@100ms`;
+    return ws.subscribe(channel, (raw) => {
+      const data = raw;
+      callback({
+        symbol: data.s,
+        timestamp: data.E,
+        bids: data.b.map(([price, qty]) => ({
+          price: parseFloat(price),
+          quantity: parseFloat(qty)
+        })),
+        asks: data.a.map(([price, qty]) => ({
+          price: parseFloat(price),
+          quantity: parseFloat(qty)
+        }))
+      });
+    });
+  }
+  async subscribeTrades(symbol, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `${symbol.toLowerCase()}@trade`;
+    return ws.subscribe(channel, (raw) => {
+      const data = raw;
+      callback({
+        id: String(data.t),
+        symbol: data.s,
+        price: parseFloat(data.p),
+        quantity: parseFloat(data.q),
+        side: data.m ? "sell" : "buy",
+        timestamp: data.T
+      });
+    });
+  }
+  // --- Internal helpers ---
+  ensureWebSocket() {
+    if (!this.ws) {
+      this.ws = new WebSocketManager(WS_BASE$1);
+      this.ws.connect().catch(() => {
+        console.warn("[Binance] WebSocket connection failed, will retry");
+      });
+    }
+    return this.ws;
+  }
+  mapTicker(data) {
+    return {
+      timestamp: Date.now(),
+      symbol: data.symbol,
+      bidPrice: parseFloat(data.bidPrice),
+      bidSize: parseFloat(data.bidQty),
+      askPrice: parseFloat(data.askPrice),
+      askSize: parseFloat(data.askQty),
+      lastPrice: parseFloat(data.lastPrice),
+      change24h: parseFloat(data.priceChangePercent) / 100,
+      volume24h: parseFloat(data.volume)
+    };
+  }
+  countDecimals(value) {
+    if (value.includes(".")) {
+      return value.split(".")[1].replace(/0+$/, "").length;
+    }
+    return 0;
+  }
+}
+const DEFAULT_STOCK_TICKERS = [
+  "TSLA",
+  "NVDA",
+  "AAPL",
+  "MSFT",
+  "GOOGL",
+  "AMZN",
+  "META",
+  "NFLX",
+  "HOOD",
+  "AMD",
+  "INTC",
+  "PLTR",
+  "SPY",
+  "QQQ"
+];
+const QUOTES_BASE = "https://api.robinhood.com/quotes/";
+class RobinhoodProvider {
+  constructor() {
+    __publicField(this, "id", "robinhood");
+    __publicField(this, "_isConnected", false);
+    __publicField(this, "pollTimers", /* @__PURE__ */ new Map());
+  }
+  get isConnected() {
+    return this._isConnected;
+  }
+  async connect() {
+    try {
+      await this.getTick(DEFAULT_STOCK_TICKERS[0] ?? "TSLA");
+      this._isConnected = true;
+    } catch {
+      this._isConnected = true;
+    }
+  }
+  async disconnect() {
+    for (const timer of this.pollTimers.values()) {
+      clearInterval(timer);
+    }
+    this.pollTimers.clear();
+    this._isConnected = false;
+  }
+  // --- Instrument metadata ---
+  async getInstruments() {
+    return DEFAULT_STOCK_TICKERS.map((ticker) => ({
+      symbol: ticker,
+      exchange: this.id,
+      baseAsset: ticker,
+      quoteAsset: "USD",
+      type: "stock_token",
+      pricePrecision: 4,
+      quantityPrecision: 0,
+      minNotional: void 0
+    }));
+  }
+  async getInstrument(symbol) {
+    const instruments = await this.getInstruments();
+    return instruments.find((i) => i.symbol === symbol.toUpperCase()) ?? null;
+  }
+  // --- REST data ---
+  async getTick(symbol) {
+    var _a;
+    const response = await fetch(`${QUOTES_BASE}?symbols=${encodeURIComponent(symbol)}`, {
+      headers: { "User-Agent": "VibeDesk/0.1" },
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (!response.ok) {
+      throw new Error(`Robinhood quotes failed for ${symbol}: ${response.status}`);
+    }
+    const data = await response.json();
+    const quote = (_a = data.results) == null ? void 0 : _a[0];
+    if (!quote) {
+      throw new Error(`Robinhood: no quote data for ${symbol}`);
+    }
+    return this.mapQuote(symbol, quote);
+  }
+  async getOrderBook(_symbol, _limit = 20) {
+    throw new Error("Robinhood public API does not expose order books.");
+  }
+  async getCandles(_symbol, _timeframe, _options) {
+    throw new Error("Robinhood public API does not expose candle history.");
+  }
+  async getRecentTrades(_symbol, _limit = 500) {
+    throw new Error("Robinhood public API does not expose recent trades.");
+  }
+  // --- WebSocket subscriptions (polling fallback) ---
+  async subscribeTicks(symbol, callback) {
+    const key = symbol.toUpperCase();
+    const poll = async () => {
+      try {
+        const tick = await this.getTick(key);
+        callback(tick);
+      } catch {
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 1e4);
+    this.pollTimers.set(key, timer);
+    return () => {
+      const t = this.pollTimers.get(key);
+      if (t) {
+        clearInterval(t);
+        this.pollTimers.delete(key);
+      }
+    };
+  }
+  async subscribeCandles(_symbol, _timeframe, _callback) {
+    throw new Error("Robinhood public API does not support candle streams.");
+  }
+  async subscribeOrderBook(_symbol, _callback) {
+    throw new Error("Robinhood public API does not support order book streams.");
+  }
+  async subscribeTrades(_symbol, _callback) {
+    throw new Error("Robinhood public API does not support trade streams.");
+  }
+  // --- Internal helpers ---
+  mapQuote(symbol, quote) {
+    const last = parseFloat(quote.last_trade_price ?? "0");
+    const prevClose = parseFloat(quote.previous_close ?? "0");
+    const timestamp = quote.updated_at ? new Date(quote.updated_at).getTime() : Date.now();
+    return {
+      timestamp,
+      symbol,
+      bidPrice: parseFloat(quote.bid_price ?? "0"),
+      bidSize: 0,
+      askPrice: parseFloat(quote.ask_price ?? "0"),
+      askSize: 0,
+      lastPrice: last,
+      change24h: prevClose > 0 ? (last - prevClose) / prevClose : void 0,
+      volume24h: void 0
+    };
+  }
+}
+const CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart/";
+const DEFAULT_TIMEFRAME_RANGE = {
+  "1m": ["1d", "1m"],
+  "5m": ["5d", "5m"],
+  "15m": ["1mo", "15m"],
+  "1h": ["1mo", "1h"],
+  "4h": ["3mo", "1h"],
+  "1d": ["1y", "1d"],
+  "1w": ["2y", "1wk"]
+};
+class YahooFinanceProvider {
+  constructor() {
+    __publicField(this, "id", "yahoo");
+    __publicField(this, "_isConnected", false);
+    __publicField(this, "pollTimers", /* @__PURE__ */ new Map());
+  }
+  get isConnected() {
+    return this._isConnected;
+  }
+  async connect() {
+    try {
+      await this.getTick(DEFAULT_STOCK_TICKERS[0] ?? "TSLA");
+      this._isConnected = true;
+    } catch {
+      this._isConnected = true;
+    }
+  }
+  async disconnect() {
+    for (const timer of this.pollTimers.values()) {
+      clearInterval(timer);
+    }
+    this.pollTimers.clear();
+    this._isConnected = false;
+  }
+  // --- Instrument metadata ---
+  async getInstruments() {
+    return DEFAULT_STOCK_TICKERS.map((ticker) => ({
+      symbol: ticker,
+      exchange: this.id,
+      baseAsset: ticker,
+      quoteAsset: "USD",
+      type: "stock_token",
+      pricePrecision: 4,
+      quantityPrecision: 0
+    }));
+  }
+  async getInstrument(symbol) {
+    const instruments = await this.getInstruments();
+    return instruments.find((i) => i.symbol === symbol.toUpperCase()) ?? null;
+  }
+  // --- REST data ---
+  async getTick(symbol) {
+    const result = await this.fetchChart(symbol, "1d", "5m");
+    const meta = result == null ? void 0 : result.meta;
+    if (!meta || typeof meta.regularMarketPrice !== "number") {
+      throw new Error(`Yahoo: no quote data for ${symbol}`);
+    }
+    const last = meta.regularMarketPrice;
+    return {
+      timestamp: meta.regularMarketTime ? meta.regularMarketTime * 1e3 : Date.now(),
+      symbol,
+      bidPrice: 0,
+      bidSize: 0,
+      askPrice: 0,
+      askSize: 0,
+      lastPrice: last,
+      change24h: typeof meta.regularMarketChangePercent === "number" ? meta.regularMarketChangePercent / 100 : void 0,
+      volume24h: meta.regularMarketVolume
+    };
+  }
+  async getCandles(symbol, timeframe, options) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const [range, interval] = DEFAULT_TIMEFRAME_RANGE[timeframe] ?? ["1d", "15m"];
+    const result = await this.fetchChart(symbol, range, interval);
+    const timestamps = (result == null ? void 0 : result.timestamp) ?? [];
+    const quote = (_b = (_a = result == null ? void 0 : result.indicators) == null ? void 0 : _a.quote) == null ? void 0 : _b[0];
+    const candles = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = (_c = quote == null ? void 0 : quote.close) == null ? void 0 : _c[i];
+      if (close === null || close === void 0) {
+        continue;
+      }
+      candles.push({
+        timestamp: timestamps[i] * 1e3,
+        open: ((_d = quote == null ? void 0 : quote.open) == null ? void 0 : _d[i]) ?? close,
+        high: ((_e = quote == null ? void 0 : quote.high) == null ? void 0 : _e[i]) ?? close,
+        low: ((_f = quote == null ? void 0 : quote.low) == null ? void 0 : _f[i]) ?? close,
+        close,
+        volume: ((_g = quote == null ? void 0 : quote.volume) == null ? void 0 : _g[i]) ?? 0
+      });
+    }
+    if ((options == null ? void 0 : options.limit) && candles.length > options.limit) {
+      return candles.slice(-options.limit);
+    }
+    return candles;
+  }
+  async getOrderBook(_symbol, _limit = 20) {
+    throw new Error("Yahoo Finance public API does not expose order books.");
+  }
+  async getRecentTrades(_symbol, _limit = 500) {
+    throw new Error("Yahoo Finance public API does not expose trades.");
+  }
+  // --- WebSocket subscriptions (polling fallback) ---
+  async subscribeTicks(symbol, callback) {
+    const key = symbol.toUpperCase();
+    const poll = async () => {
+      try {
+        const tick = await this.getTick(key);
+        callback(tick);
+      } catch {
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 1e4);
+    this.pollTimers.set(key, timer);
+    return () => {
+      const t = this.pollTimers.get(key);
+      if (t) {
+        clearInterval(t);
+        this.pollTimers.delete(key);
+      }
+    };
+  }
+  async subscribeCandles(_symbol, _timeframe, _callback) {
+    throw new Error("Yahoo Finance public API does not support candle streams.");
+  }
+  async subscribeOrderBook(_symbol, _callback) {
+    throw new Error("Yahoo Finance public API does not support order book streams.");
+  }
+  async subscribeTrades(_symbol, _callback) {
+    throw new Error("Yahoo Finance public API does not support trade streams.");
+  }
+  // --- Internal helpers ---
+  async fetchChart(symbol, range, interval) {
+    var _a, _b, _c;
+    const url = `${CHART_BASE}${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`;
+    const response = await fetch(url, {
+      headers: { "User-Agent": "VibeDesk/0.1" },
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (!response.ok) {
+      throw new Error(`Yahoo chart failed for ${symbol}: ${response.status}`);
+    }
+    const data = await response.json();
+    if ((_a = data.chart) == null ? void 0 : _a.error) {
+      throw new Error(`Yahoo chart error for ${symbol}: ${JSON.stringify(data.chart.error)}`);
+    }
+    return (_c = (_b = data.chart) == null ? void 0 : _b.result) == null ? void 0 : _c[0];
+  }
+}
+function parseKey(key) {
+  const parts = key.split(":");
+  const type = parts[0];
+  const sub = { type };
+  if (type === "l2Book" || type === "trades") {
+    sub.coin = parts[1];
+  } else if (type === "candle") {
+    sub.coin = parts[1];
+    sub.interval = parts[2];
+  }
+  return sub;
+}
+class HyperliquidWebSocketManager extends WebSocketManager {
+  sendSubscribe(channel) {
+    this.send({ method: "subscribe", subscription: parseKey(channel) });
+  }
+  sendUnsubscribe(channel) {
+    this.send({ method: "unsubscribe", subscription: parseKey(channel) });
+  }
+  handleMessage(data) {
+    const msg = data;
+    if (!msg.channel || msg.data === void 0) {
+      return;
+    }
+    const payload = msg.data;
+    let key = msg.channel;
+    if ((msg.channel === "l2Book" || msg.channel === "trades") && (payload == null ? void 0 : payload.coin)) {
+      key = `${msg.channel}:${payload.coin}`;
+    } else if (msg.channel === "candle" && (payload == null ? void 0 : payload.coin)) {
+      key = `${msg.channel}:${payload.coin}:${payload.i ?? "1h"}`;
+    }
+    const sub = this.getSubscription(key);
+    if (sub) {
+      for (const cb of sub.callbacks) {
+        cb(msg.data);
+      }
+    }
+  }
+}
+const REST_BASE = "https://api.hyperliquid.xyz";
+const WS_BASE = "wss://api.hyperliquid.xyz/ws";
+const CACHE_TTL_MS = 3e3;
+function num(value) {
+  return typeof value === "number" ? value : parseFloat(value ?? "0");
+}
+function levelToLevel(level) {
+  if (Array.isArray(level)) {
+    return { price: parseFloat(level[0]), quantity: parseFloat(level[1]) };
+  }
+  return { price: parseFloat(level.px), quantity: parseFloat(level.sz) };
+}
+class HyperliquidProvider {
+  constructor() {
+    __publicField(this, "id", "hyperliquid");
+    __publicField(this, "ws", null);
+    __publicField(this, "instrumentCache", []);
+    __publicField(this, "instrumentCacheTime", 0);
+    __publicField(this, "ctxCache", []);
+    __publicField(this, "ctxUniverse", []);
+    __publicField(this, "ctxCacheTime", 0);
+    __publicField(this, "midsCache", {});
+    __publicField(this, "midsCacheTime", 0);
+    __publicField(this, "allMidsSubscribed", false);
+    __publicField(this, "tickSubscribers", /* @__PURE__ */ new Map());
+  }
+  get isConnected() {
+    var _a;
+    return ((_a = this.ws) == null ? void 0 : _a.isConnected) ?? false;
+  }
+  async connect() {
+    this.ws = new HyperliquidWebSocketManager(WS_BASE);
+    try {
+      await Promise.race([
+        this.ws.connect(),
+        new Promise(
+          (_, reject) => setTimeout(() => reject(new Error("Hyperliquid WS connect timeout")), 5e3)
+        )
+      ]);
+    } catch {
+    }
+  }
+  async disconnect() {
+    var _a;
+    (_a = this.ws) == null ? void 0 : _a.disconnect();
+    this.ws = null;
+    this.allMidsSubscribed = false;
+    this.tickSubscribers.clear();
+  }
+  // --- Instrument metadata ---
+  async getInstruments() {
+    const now = Date.now();
+    if (this.instrumentCache.length > 0 && now - this.instrumentCacheTime < 36e5) {
+      return this.instrumentCache;
+    }
+    const meta = await this.info({ type: "meta" });
+    const instruments = (meta.universe ?? []).filter((u) => !u.isDelisted).map((u) => ({
+      symbol: u.name ?? "",
+      exchange: this.id,
+      baseAsset: u.name ?? "",
+      quoteAsset: "USD",
+      type: "futures",
+      pricePrecision: 6,
+      quantityPrecision: u.szDecimals ?? 4,
+      maxLeverage: u.maxLeverage
+    })).filter((i) => i.symbol.length > 0);
+    this.instrumentCache = instruments;
+    this.instrumentCacheTime = now;
+    return instruments;
+  }
+  async getInstrument(symbol) {
+    const instruments = await this.getInstruments();
+    return instruments.find((i) => i.symbol === symbol) ?? null;
+  }
+  // --- REST data ---
+  async getTick(symbol) {
+    var _a, _b;
+    const ctx = await this.findAssetCtx(symbol);
+    if (!ctx) {
+      throw new Error(`Hyperliquid: unknown asset "${symbol}"`);
+    }
+    const last = num(ctx.midPx ?? ctx.markPx);
+    const prevDay = num(ctx.prevDayPx);
+    let bid = 0;
+    let ask = 0;
+    try {
+      const book = await this.getOrderBook(symbol, 1);
+      bid = ((_a = book.bids[0]) == null ? void 0 : _a.price) ?? 0;
+      ask = ((_b = book.asks[0]) == null ? void 0 : _b.price) ?? 0;
+    } catch {
+    }
+    return {
+      timestamp: Date.now(),
+      symbol,
+      bidPrice: bid,
+      bidSize: 0,
+      askPrice: ask,
+      askSize: 0,
+      lastPrice: last,
+      change24h: prevDay > 0 ? (last - prevDay) / prevDay : void 0,
+      volume24h: num(ctx.dayNtlVlm)
+    };
+  }
+  async getOrderBook(symbol, limit = 20) {
+    const book = await this.info({ type: "l2Book", coin: symbol });
+    if (!book.levels) {
+      throw new Error(`Hyperliquid: no order book for "${symbol}"`);
+    }
+    const [bids, asks] = book.levels;
+    return {
+      symbol,
+      timestamp: Date.now(),
+      bids: (bids ?? []).slice(0, limit).map(levelToLevel),
+      asks: (asks ?? []).slice(0, limit).map(levelToLevel)
+    };
+  }
+  async getCandles(symbol, timeframe, options) {
+    const endTime = (options == null ? void 0 : options.endTime) ?? Date.now();
+    const startTime = (options == null ? void 0 : options.startTime) ?? endTime - 300 * 6e4;
+    const req = {
+      coin: symbol,
+      interval: timeframe,
+      startTime,
+      endTime
+    };
+    const candles = await this.info({ type: "candleSnapshot", req });
+    let result = candles.map((c) => ({
+      timestamp: c.t ?? 0,
+      open: num(c.o),
+      high: num(c.h),
+      low: num(c.l),
+      close: num(c.c),
+      volume: num(c.v)
+    }));
+    if ((options == null ? void 0 : options.limit) && result.length > options.limit) {
+      result = result.slice(-options.limit);
+    }
+    return result;
+  }
+  async getRecentTrades(symbol, limit = 500) {
+    const trades = await this.info({ type: "recentTrades", coin: symbol });
+    return (trades ?? []).slice(0, limit).map((t) => ({
+      id: String(t.tid ?? ""),
+      symbol,
+      price: num(t.px),
+      quantity: num(t.sz),
+      side: t.side === "B" ? "buy" : "sell",
+      timestamp: t.time ?? Date.now()
+    }));
+  }
+  // --- WebSocket subscriptions ---
+  async subscribeTicks(symbol, callback) {
+    const key = symbol;
+    let subs = this.tickSubscribers.get(key);
+    if (!subs) {
+      subs = /* @__PURE__ */ new Set();
+      this.tickSubscribers.set(key, subs);
+    }
+    subs.add(callback);
+    await this.ensureAllMidsSubscription();
+    const mid = await this.getMid(key);
+    if (mid > 0) {
+      callback({ timestamp: Date.now(), symbol: key, bidPrice: 0, bidSize: 0, askPrice: 0, askSize: 0, lastPrice: mid });
+    }
+    return () => {
+      const s = this.tickSubscribers.get(key);
+      s == null ? void 0 : s.delete(callback);
+      if (s && s.size === 0) {
+        this.tickSubscribers.delete(key);
+      }
+    };
+  }
+  async subscribeCandles(symbol, timeframe, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `candle:${symbol}:${timeframe}`;
+    return ws.subscribe(channel, (raw) => {
+      var _a, _b, _c, _d, _e;
+      const data = raw;
+      callback(
+        {
+          timestamp: data.t ?? 0,
+          open: num((_a = data.c) == null ? void 0 : _a.o),
+          high: num((_b = data.c) == null ? void 0 : _b.h),
+          low: num((_c = data.c) == null ? void 0 : _c.l),
+          close: num((_d = data.c) == null ? void 0 : _d.c),
+          volume: num((_e = data.c) == null ? void 0 : _e.v)
+        },
+        symbol
+      );
+    });
+  }
+  async subscribeOrderBook(symbol, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `l2Book:${symbol}`;
+    return ws.subscribe(channel, (raw) => {
+      const data = raw;
+      if (!data.levels) {
+        return;
+      }
+      const [bids, asks] = data.levels;
+      callback({
+        symbol: data.coin ?? symbol,
+        timestamp: Date.now(),
+        bids: (bids ?? []).map(levelToLevel),
+        asks: (asks ?? []).map(levelToLevel)
+      });
+    });
+  }
+  async subscribeTrades(symbol, callback) {
+    const ws = this.ensureWebSocket();
+    const channel = `trades:${symbol}`;
+    return ws.subscribe(channel, (raw) => {
+      const data = raw;
+      for (const t of data.trades ?? []) {
+        callback({
+          id: String(t.tid ?? ""),
+          symbol: data.coin ?? symbol,
+          price: num(t.px),
+          quantity: num(t.sz),
+          side: t.side === "B" ? "buy" : "sell",
+          timestamp: t.time ?? Date.now()
+        });
+      }
+    });
+  }
+  // --- Internal helpers ---
+  async info(body) {
+    const response = await fetch(`${REST_BASE}/info`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (!response.ok) {
+      throw new Error(`Hyperliquid info failed: ${response.status}`);
+    }
+    return await response.json();
+  }
+  async refreshCtxCache() {
+    var _a;
+    const now = Date.now();
+    if (now - this.ctxCacheTime < CACHE_TTL_MS) {
+      return;
+    }
+    const data = await this.info({ type: "metaAndAssetCtxs" });
+    this.ctxUniverse = ((_a = data[0]) == null ? void 0 : _a.universe) ?? [];
+    this.ctxCache = data[1] ?? [];
+    this.ctxCacheTime = now;
+  }
+  async findAssetCtx(symbol) {
+    await this.refreshCtxCache();
+    const index = this.ctxUniverse.findIndex((u) => u.name === symbol);
+    if (index < 0) {
+      return void 0;
+    }
+    return this.ctxCache[index];
+  }
+  async getMid(symbol) {
+    const now = Date.now();
+    if (now - this.midsCacheTime > CACHE_TTL_MS) {
+      const mids = await this.info({ type: "allMids" });
+      this.midsCache = mids;
+      this.midsCacheTime = now;
+    }
+    return num(this.midsCache[symbol]);
+  }
+  async ensureAllMidsSubscription() {
+    if (this.allMidsSubscribed) {
+      return;
+    }
+    const ws = this.ensureWebSocket();
+    await ws.subscribe("allMids", (raw) => {
+      const data = raw;
+      const mids = data.mids ?? {};
+      this.midsCache = { ...this.midsCache, ...mids };
+      this.midsCacheTime = Date.now();
+      for (const [symbol, subs] of this.tickSubscribers) {
+        const mid = num(mids[symbol]);
+        if (mid <= 0) {
+          continue;
+        }
+        for (const cb of subs) {
+          cb({ timestamp: Date.now(), symbol, bidPrice: 0, bidSize: 0, askPrice: 0, askSize: 0, lastPrice: mid });
+        }
+      }
+    });
+    this.allMidsSubscribed = true;
+  }
+  ensureWebSocket() {
+    if (!this.ws) {
+      this.ws = new HyperliquidWebSocketManager(WS_BASE);
+      this.ws.connect().catch(() => {
+        console.warn("[Hyperliquid] WebSocket connection failed, will retry");
+      });
+    }
+    return this.ws;
+  }
+}
+class DataSourceRegistry {
+  constructor() {
+    __publicField(this, "entries", /* @__PURE__ */ new Map());
+  }
+  register(provider, manifest) {
+    if (manifest.id !== provider.id) {
+      throw new Error(`Manifest id "${manifest.id}" does not match provider id "${provider.id}"`);
+    }
+    this.entries.set(provider.id, { provider, manifest });
+  }
+  get(id) {
+    return this.entries.get(id);
+  }
+  list() {
+    return Array.from(this.entries.values());
+  }
+  listManifests() {
+    return this.list().map((e) => e.manifest);
+  }
+  /** Whether a provider is available for a symbol (no throw). */
+  async hasPrice(id, symbol) {
+    const entry = this.entries.get(id);
+    if (!entry) {
+      return false;
+    }
+    try {
+      await entry.provider.getTick(symbol);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+const BUILTIN_MANIFESTS = [
+  {
+    id: "robinhood",
+    name: "Robinhood",
+    kind: "broker",
+    assetScope: "stocks",
+    authRequired: false,
+    updateMode: ["polling"],
+    description: "US equity quotes from Robinhood public endpoint",
+    privacyNote: "Public quotes endpoint only; no account access."
+  },
+  {
+    id: "yahoo",
+    name: "Yahoo Finance",
+    kind: "aggregator",
+    assetScope: "stocks",
+    authRequired: false,
+    updateMode: ["polling"],
+    description: "US equity quotes & candles from Yahoo public chart API",
+    privacyNote: "Public chart endpoint; no account access."
+  },
+  {
+    id: "hyperliquid",
+    name: "Hyperliquid",
+    kind: "dex",
+    assetScope: "crypto",
+    authRequired: false,
+    updateMode: ["rest", "ws"],
+    description: "Perp futures from Hyperliquid public Info API",
+    privacyNote: "Public Info API; no API key required."
+  },
+  {
+    id: "binance",
+    name: "Binance",
+    kind: "cex",
+    assetScope: "crypto",
+    authRequired: false,
+    updateMode: ["rest", "ws"],
+    description: "Spot market data from Binance public API",
+    privacyNote: "Public market data only."
+  }
+];
+async function createDefaultDataSources() {
+  const aggregator = new MarketDataAggregator();
+  const registry = new DataSourceRegistry();
+  const providers = [
+    new RobinhoodProvider(),
+    new YahooFinanceProvider(),
+    new HyperliquidProvider(),
+    new BinanceSpotProvider()
+  ];
+  for (const provider of providers) {
+    aggregator.registerProvider(provider);
+    const manifest = BUILTIN_MANIFESTS.find((m) => m.id === provider.id);
+    if (manifest) {
+      registry.register(provider, manifest);
+    }
+    provider.connect().catch(() => {
+      console.warn(`[DataSources] ${provider.id} connect failed (REST fallback active)`);
+    });
+  }
+  return { aggregator, registry };
+}
+let agentManager = null;
+let agentConfigPath = "";
+function sanitizeTemplate(t) {
+  return {
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    icon: t.icon,
+    defaultIntervalMs: t.defaultIntervalMs,
+    defaultSymbols: t.defaultSymbols,
+    tools: t.tools
+  };
+}
+function loadAgentConfig() {
+  try {
+    if (!existsSync(agentConfigPath)) return null;
+    const raw = JSON.parse(readFileSync(agentConfigPath, "utf8"));
+    if (!raw.baseUrl || !raw.apiKey || !raw.model) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+function saveAgentConfig(config) {
+  try {
+    if (!config) {
+      if (existsSync(agentConfigPath)) {
+        writeFileSync(agentConfigPath, "", { encoding: "utf8", mode: 384 });
+      }
+      return;
+    }
+    mkdirSync(dirname(agentConfigPath), { recursive: true });
+    writeFileSync(agentConfigPath, JSON.stringify(config, null, 2), {
+      encoding: "utf8",
+      mode: 384
+    });
+  } catch (err) {
+    console.error("[agents] failed to persist LLM config:", err);
+  }
+}
+async function setupAgentIpc(options) {
+  agentConfigPath = options.configPath;
+  const dataSources = await createDefaultDataSources();
+  const market = dataSources.aggregator;
+  agentManager = new AgentManager({
+    market,
+    walletAccess: {
+      listAuthorizedWallets: () => {
+        const vault = options.getWallet();
+        return vault.listAuthorized().map((key) => {
+          var _a;
+          const [walletId = "", indexStr = ""] = key.split(":");
+          if (!walletId) return null;
+          const wallet = vault.getWallet(walletId);
+          if (!wallet) return null;
+          if (wallet.kind === "hd" && indexStr !== "") {
+            const acc = (_a = wallet.accounts) == null ? void 0 : _a.find(
+              (a) => String(a.index) === indexStr
+            );
+            return acc ? { id: key, address: acc.address, name: `${wallet.name ?? walletId} #${indexStr}` } : null;
+          }
+          return { id: key, address: wallet.address, name: wallet.name ?? walletId };
+        }).filter((w) => w !== null);
+      }
+    }
+  });
+  const saved = loadAgentConfig();
+  if (saved) {
+    agentManager.setLlmConfig(saved);
+  }
+  agentManager.onEvent((event) => {
+    for (const wc of webContents.getAllWebContents()) {
+      wc.send("agent:event", event);
+    }
+  });
+  ipcMain.handle("agent:listTemplates", () => {
+    return agentManager.listTemplates().map(sanitizeTemplate);
+  });
+  ipcMain.handle("agent:list", () => agentManager.list());
+  ipcMain.handle("agent:getMode", () => agentManager.getMode());
+  ipcMain.handle(
+    "agent:create",
+    (_e, args) => {
+      return agentManager.create(args.templateId, {
+        name: args.name,
+        symbols: args.symbols
+      });
+    }
+  );
+  ipcMain.handle("agent:start", (_e, args) => {
+    agentManager.start(args.id);
+    return agentManager.get(args.id);
+  });
+  ipcMain.handle("agent:stop", (_e, args) => {
+    agentManager.stop(args.id);
+    return agentManager.get(args.id);
+  });
+  ipcMain.handle("agent:remove", (_e, args) => {
+    agentManager.remove(args.id);
+    return agentManager.list();
+  });
+  ipcMain.handle("agent:runOnce", async (_e, args) => {
+    await agentManager.runOnce(args.id);
+    return agentManager.get(args.id);
+  });
+  ipcMain.handle(
+    "agent:setLlmConfig",
+    (_e, config) => {
+      agentManager.setLlmConfig(config);
+      saveAgentConfig(config);
+      return { mode: agentManager.getMode() };
+    }
+  );
+  ipcMain.handle("agent:getLlmConfig", () => agentManager.getLlmConfig());
+}
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 const DIST_ELECTRON = path.join(__dirname$1, "..");
 const DIST = path.join(DIST_ELECTRON, "../dist");
@@ -6586,9 +8994,13 @@ function setupIpcHandlers() {
     return { wallets: getWalletManager().listWallets() };
   });
 }
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupIpcHandlers();
   createWindow();
+  await setupAgentIpc({
+    getWallet: getWalletManager,
+    configPath: path.join(app.getPath("userData"), "agent-config.json")
+  });
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

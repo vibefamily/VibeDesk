@@ -2,7 +2,8 @@
  * Settings view - configure wallets, API keys, and application settings.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { useAgentStore } from '../stores/agentStore'
 
 type SettingsTab = 'general' | 'wallets' | 'exchanges' | 'risk' | 'models'
 
@@ -177,31 +178,7 @@ const Settings: React.FC = () => {
         )
 
       case 'models':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-            <SettingRow label="Default Model" description="AI model used for trading analysis">
-              <select defaultValue="deepseek-chat" style={{ width: 200 }}>
-                <option value="deepseek-chat">DeepSeek Chat</option>
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="claude-sonnet">Claude Sonnet</option>
-                <option value="llama-3">Llama 3.1 (local)</option>
-              </select>
-            </SettingRow>
-            <SettingRow label="API Key" description="API key for the selected model provider">
-              <input
-                type="password"
-                placeholder="sk-..."
-                style={{ width: 300, fontFamily: 'monospace' }}
-              />
-            </SettingRow>
-            <SettingRow label="Agent Auto-Execute" description="Allow agent to execute trades without confirmation when confidence is high">
-              <input type="checkbox" style={{ width: 18, height: 18 }} />
-            </SettingRow>
-            <SettingRow label="Confidence Threshold" description="Minimum confidence for auto-execution (0-1)">
-              <input type="number" defaultValue="0.9" step="0.05" min="0" max="1" style={{ width: 160, textAlign: 'right' }} />
-            </SettingRow>
-          </div>
-        )
+        return <LlmSettings />
     }
   }
 
@@ -297,5 +274,158 @@ const SettingRow: React.FC<{
     </div>
   </div>
 )
+
+/**
+ * LLM configuration for agents.
+ *
+ * Any OpenAI-compatible provider works (OpenAI, DeepSeek, local vLLM /
+ * Ollama / LM Studio). The config is persisted by the main process to
+ * userData/agent-config.json (0600) and applied to the AgentManager.
+ */
+const LlmSettings: React.FC = () => {
+  const { setLlmConfig, getLlmConfig, mode } = useAgentStore()
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState('')
+  const [loaded, setLoaded] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    void (async () => {
+      const cfg = await getLlmConfig()
+      if (cfg) {
+        setBaseUrl(cfg.baseUrl)
+        setApiKey(cfg.apiKey)
+        setModel(cfg.model)
+      }
+      setLoaded(true)
+    })()
+  }, [getLlmConfig])
+
+  const onSave = async () => {
+    setSaving(true)
+    setMessage('')
+    try {
+      const result = await setLlmConfig({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), model: model.trim() })
+      setMessage(
+        result.mode === 'llm'
+          ? 'Saved. Agents now run in LLM mode.'
+          : 'Config missing fields - agents stay in rule mode.',
+      )
+    } catch (e) {
+      setMessage(`Failed: ${(e as Error).message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const onClear = async () => {
+    setSaving(true)
+    setMessage('')
+    try {
+      await setLlmConfig(null)
+      setBaseUrl('')
+      setApiKey('')
+      setModel('')
+      setMessage('Cleared. Agents run in deterministic rule mode.')
+    } catch (e) {
+      setMessage(`Failed: ${(e as Error).message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!loaded) {
+    return <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+      <div
+        style={{
+          padding: '10px 14px',
+          borderRadius: 8,
+          background:
+            mode === 'llm' ? 'rgba(63,185,80,0.1)' : 'rgba(210,153,34,0.08)',
+          border:
+            mode === 'llm'
+              ? '1px solid rgba(63,185,80,0.3)'
+              : '1px solid rgba(210,153,34,0.25)',
+          color: mode === 'llm' ? 'var(--color-success)' : 'var(--color-warning)',
+          fontSize: 'var(--font-sm)',
+        }}
+      >
+        {mode === 'llm'
+          ? 'LLM mode is active - agents analyze with your configured model.'
+          : 'Rule mode - agents use deterministic analysis on live multi-source prices. Configure a key to unlock LLM analysis.'}
+      </div>
+
+      <SettingRow label="API Base URL" description="OpenAI-compatible endpoint, e.g. https://api.openai.com/v1 or https://api.deepseek.com/v1">
+        <input
+          type="text"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder="https://api.openai.com/v1"
+          style={{ width: 320, fontFamily: 'monospace' }}
+        />
+      </SettingRow>
+      <SettingRow label="API Key" description="Key for the provider (stored locally, never leaves this machine)">
+        <input
+          type="password"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder="sk-..."
+          style={{ width: 320, fontFamily: 'monospace' }}
+        />
+      </SettingRow>
+      <SettingRow label="Model" description="Model id, e.g. gpt-4o-mini, deepseek-chat, qwen2.5:7b">
+        <input
+          type="text"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="deepseek-chat"
+          style={{ width: 320, fontFamily: 'monospace' }}
+        />
+      </SettingRow>
+      <SettingRow label="" description="">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            onClick={() => void onSave()}
+            disabled={saving}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: 'var(--color-accent)',
+              color: 'white',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 'var(--font-sm)',
+              fontWeight: 600,
+            }}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={() => void onClear()}
+            disabled={saving}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: 'transparent',
+              color: 'var(--color-text-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              fontSize: 'var(--font-sm)',
+            }}
+          >
+            Clear
+          </button>
+          {message && <span style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>{message}</span>}
+        </div>
+      </SettingRow>
+    </div>
+  )
+}
 
 export default Settings
