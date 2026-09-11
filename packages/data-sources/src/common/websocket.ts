@@ -127,6 +127,14 @@ export class WebSocketManager {
   }
 
   /**
+   * Resolve a subscription by channel key. Subclasses use this when
+   * routing protocol-specific push messages to callbacks.
+   */
+  protected getSubscription(channel: string): WebSocketSubscription | undefined {
+    return this.subscriptions.get(channel)
+  }
+
+  /**
    * Send a JSON message over the WebSocket.
    */
   send(data: unknown): void {

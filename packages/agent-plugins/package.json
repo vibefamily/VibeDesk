@@ -1,0 +1,28 @@
+{
+  "name": "@vibe/agent-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI Agent runtime and trading tool plugins for Vibe",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./runtime": "./src/runtime/index.ts",
+    "./tools": "./src/tools/index.ts",
+    "./plugins": "./src/plugins/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@vibe/shared": "workspace:*",
+    "@vibe/core": "workspace:*",
+    "@vibe/strategy-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
