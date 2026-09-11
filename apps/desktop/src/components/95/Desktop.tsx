@@ -10,6 +10,7 @@ import DesktopIcon from './DesktopIcon'
 import WindowManager from './WindowManager'
 import Taskbar, { START_MENU } from './Taskbar'
 import { useWindowStore } from './windowStore'
+import { useUiStore } from '../../stores/uiStore'
 
 /** Desktop icons: the four core product modules. */
 const DESKTOP_ICONS = [
@@ -24,6 +25,7 @@ const DESKTOP_ICONS = [
 const Desktop: React.FC = () => {
   const [startMenuOpen, setStartMenuOpen] = useState(false)
   const openWindow = useWindowStore((s) => s.openWindow)
+  const zoom = useUiStore((s) => s.zoom)
 
   return (
     <div
@@ -35,6 +37,7 @@ const Desktop: React.FC = () => {
         position: 'relative',
         overflow: 'hidden',
         fontFamily: 'MS Sans Serif, Arial, sans-serif',
+        zoom,
       }}
     >
       {/* Draggable window strip (the Electron window has a hiddenInset

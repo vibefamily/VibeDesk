@@ -6,11 +6,14 @@ import React, { useEffect, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
 import { useWalletStore } from '../stores/walletStore'
 import { useWindowStore } from '../components/95/windowStore'
+import { useUiStore, SCALE_LABEL, type UiScale } from '../stores/uiStore'
 
 type SettingsTab = 'general' | 'wallets' | 'exchanges' | 'risk' | 'models'
 
 const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
+  const uiScale = useUiStore((s) => s.scale)
+  const setUiScale = useUiStore((s) => s.setScale)
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: '⚙️' },
@@ -30,6 +33,17 @@ const Settings: React.FC = () => {
                 <option value="system">System</option>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
+              </select>
+            </SettingRow>
+            <SettingRow label="Interface Size" description="Zoom the whole interface - titles, chat, icons and spacing">
+              <select
+                value={uiScale}
+                onChange={(e) => setUiScale(e.target.value as UiScale)}
+                style={{ ...ctl, width: 160 }}
+              >
+                <option value="small">Small (90%)</option>
+                <option value="normal">Normal (100%)</option>
+                <option value="large">Large (125%)</option>
               </select>
             </SettingRow>
             <SettingRow label="Language" description="Display language">
