@@ -212,6 +212,7 @@ interface VibeAPI {
   agent: AgentApiType
   market: MarketApiType
   info: InfoApiType
+  setTitleBarStyle: (style: 'hiddenInset' | 'default') => Promise<'hiddenInset' | 'default'>
   on: (
     channel: string,
     callback: (...args: unknown[]) => void,

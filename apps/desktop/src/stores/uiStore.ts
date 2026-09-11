@@ -27,7 +27,9 @@ const SCALE_LABEL: Record<UiScale, string> = {
 interface UiState {
   scale: UiScale
   zoom: number
+  nativeTitleBar: boolean
   setScale: (scale: UiScale) => void
+  setNativeTitleBar: (on: boolean) => Promise<void>
 }
 
 function loadSaved(): UiScale {
@@ -40,11 +42,22 @@ function loadSaved(): UiScale {
   return 'normal'
 }
 
+const NATIVE_TITLEBAR_KEY = 'vibedesk.nativeTitleBar'
+
+function loadNativeTitleBar(): boolean {
+  try {
+    return localStorage.getItem(NATIVE_TITLEBAR_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export const useUiStore = create<UiState>((set) => {
   const scale = loadSaved()
   return {
     scale,
     zoom: SCALE_VALUE[scale],
+    nativeTitleBar: loadNativeTitleBar(),
     setScale: (next) => {
       try {
         localStorage.setItem(KEY, next)
@@ -52,6 +65,21 @@ export const useUiStore = create<UiState>((set) => {
         // ignore persistence failures
       }
       set({ scale: next, zoom: SCALE_VALUE[next] })
+    },
+    setNativeTitleBar: async (on) => {
+      try {
+        localStorage.setItem(NATIVE_TITLEBAR_KEY, on ? '1' : '0')
+      } catch {
+        // ignore persistence failures
+      }
+      set({ nativeTitleBar: on })
+      // Tell the main process to switch the native title bar at runtime.
+      try {
+        await window.vibeAPI.setTitleBarStyle(on ? 'default' : 'hiddenInset')
+      } catch {
+        // non-macOS: runtime switching is not supported; the stored
+        // preference still applies on next launch
+      }
     },
   }
 })

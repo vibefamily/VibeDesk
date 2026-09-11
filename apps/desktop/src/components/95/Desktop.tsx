@@ -26,6 +26,7 @@ const Desktop: React.FC = () => {
   const [startMenuOpen, setStartMenuOpen] = useState(false)
   const openWindow = useWindowStore((s) => s.openWindow)
   const zoom = useUiStore((s) => s.zoom)
+  const nativeTitleBar = useUiStore((s) => s.nativeTitleBar)
   // When any window is maximized its title bar overlaps the app drag
   // strip (0-36px). -webkit-app-region: drag intercepts mouse events at
   // the native level - CSS z-index cannot beat it - so the strip must
@@ -47,19 +48,23 @@ const Desktop: React.FC = () => {
       }}
     >
       {/* Draggable window strip (the Electron window has a hiddenInset
-          title bar, so this region lets the user move the whole app). */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 36,
-          WebkitAppRegion: 'drag',
-          pointerEvents: anyMaximized ? 'none' : undefined,
-          zIndex: 50,
-        } as React.CSSProperties}
-      />
+          title bar, so this region lets the user move the whole app).
+          Hidden when the OS title bar is shown or a window is maximized
+          (the native drag region would swallow its buttons). */}
+      {!nativeTitleBar && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 36,
+            WebkitAppRegion: 'drag',
+            pointerEvents: anyMaximized ? 'none' : undefined,
+            zIndex: 50,
+          } as React.CSSProperties}
+        />
+      )}
 
       <div
         style={{

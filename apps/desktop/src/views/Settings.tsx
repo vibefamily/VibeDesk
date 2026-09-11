@@ -14,6 +14,8 @@ const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const uiScale = useUiStore((s) => s.scale)
   const setUiScale = useUiStore((s) => s.setScale)
+  const nativeTitleBar = useUiStore((s) => s.nativeTitleBar)
+  const setNativeTitleBar = useUiStore((s) => s.setNativeTitleBar)
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: '⚙️' },
@@ -44,6 +46,19 @@ const Settings: React.FC = () => {
                 <option value="small">Small (90%)</option>
                 <option value="normal">Normal (100%)</option>
                 <option value="large">Large (125%)</option>
+              </select>
+            </SettingRow>
+            <SettingRow
+              label="Native Title Bar"
+              description="Use the OS title bar (macOS: shows the traffic-light controls). Off = immersive 95-style edge-to-edge."
+            >
+              <select
+                value={nativeTitleBar ? 'on' : 'off'}
+                onChange={(e) => void setNativeTitleBar(e.target.value === 'on')}
+                style={{ ...ctl, width: 160 }}
+              >
+                <option value="off">Off (immersive)</option>
+                <option value="on">On (system)</option>
               </select>
             </SettingRow>
             <SettingRow label="Language" description="Display language">

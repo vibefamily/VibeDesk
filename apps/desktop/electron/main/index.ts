@@ -6,6 +6,7 @@
  */
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { VaultWalletManager } from '@vibe/core/wallet'
@@ -31,7 +32,50 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 
 let win: BrowserWindow | null = null
 
+export type TitleBarStyle = 'hiddenInset' | 'default'
+
+/** Persisted UI preferences that the main process must know at launch. */
+interface UiConfig {
+  titleBarStyle?: TitleBarStyle
+}
+
+function uiConfigPath(): string {
+  return path.join(app.getPath('userData'), 'vibe-ui.json')
+}
+
+function readUiConfig(): UiConfig {
+  try {
+    return JSON.parse(
+      fs.readFileSync(uiConfigPath(), 'utf8'),
+    ) as UiConfig
+  } catch {
+    return {}
+  }
+}
+
+function saveUiConfig(cfg: UiConfig): void {
+  try {
+    fs.writeFileSync(uiConfigPath(), JSON.stringify(cfg, null, 2))
+  } catch {
+    // best-effort persistence
+  }
+}
+
+/** Apply the title bar style to the window (macOS supports runtime
+ *  switching; other platforms keep the launch-time value). */
+function applyTitleBarStyle(style: TitleBarStyle): void {
+  if (!win || process.platform !== 'darwin') return
+  // setTitleBarStyle is a runtime macOS API that the Electron 30 type
+  // definitions do not declare; call it defensively.
+  try {
+    ;(win as unknown as { setTitleBarStyle: (s: string) => void }).setTitleBarStyle(style)
+  } catch {
+    // ignore runtime unavailability
+  }
+}
+
 function createWindow() {
+  const uiCfg = readUiConfig()
   win = new BrowserWindow({
     title: 'Vibe - AI Trading Agent',
     width: 1400,
@@ -39,7 +83,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     frame: true,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: uiCfg.titleBarStyle ?? 'hiddenInset',
     webPreferences: {
       preload: path.join(DIST_ELECTRON, 'preload/index.mjs'),
       nodeIntegration: false,
@@ -47,6 +91,15 @@ function createWindow() {
       sandbox: false,
     },
   })
+
+  ipcMain.handle(
+    'window:setTitleBarStyle',
+    (_event, style: TitleBarStyle) => {
+      applyTitleBarStyle(style)
+      saveUiConfig({ ...readUiConfig(), titleBarStyle: style })
+      return style
+    },
+  )
 
   // Open external links in the default browser
   win.webContents.setWindowOpenHandler(({ url }) => {
