@@ -17,7 +17,8 @@
     "test": "pnpm -r test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm lint && pnpm typecheck && pnpm test"
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "start": "bash start.sh"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
