@@ -184,7 +184,9 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
           left: 0,
           width: '100vw',
           height: `calc(100vh - ${TASKBAR_HEIGHT}px)`,
-          zIndex,
+          // Render-time baseline: even windows opened before a zIndex
+          // migration keep stacking above the desktop drag strip.
+          zIndex: 100 + zIndex,
         }}
       >
         {body}
@@ -207,7 +209,7 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
           position: 'absolute',
           width: `${width}px`,
           height: `${height}px`,
-          zIndex,
+          zIndex: 100 + zIndex,
           maxWidth: '100%',
         }}
       >
