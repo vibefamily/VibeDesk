@@ -32,7 +32,11 @@ const Desktop: React.FC = () => {
   // the native level - CSS z-index cannot beat it - so the strip must
   // stop capturing clicks, otherwise the maximized window's minimize /
   // restore / close buttons stay dead.
-  const anyMaximized = useWindowStore((s) => s.windows.some((w) => w.isMaximized))
+  // A minimized-but-maximized window no longer occupies the screen, so it
+  // must not keep the strip disabled (that made the app window unmovable).
+  const anyMaximized = useWindowStore((s) =>
+    s.windows.some((w) => w.isMaximized && !w.isMinimized),
+  )
 
   return (
     <div
