@@ -177,7 +177,7 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
   if (isMaximized) {
     return (
       <div
-        onMouseDown={() => focusWindow(windowId)}
+        onMouseDownCapture={() => focusWindow(windowId)}
         style={{
           position: 'fixed',
           top: 0,
@@ -202,7 +202,7 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
     >
       <div
         ref={nodeRef}
-        onMouseDown={() => focusWindow(windowId)}
+        onMouseDownCapture={() => focusWindow(windowId)}
         style={{
           position: 'absolute',
           width: `${width}px`,

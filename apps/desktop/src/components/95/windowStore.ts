@@ -83,7 +83,10 @@ export const useWindowStore = create<WindowStore>((set) => ({
             id,
             isMinimized: false,
             isMaximized: false,
-            zIndex: state.nextZIndex,
+            // Baseline above the desktop drag strip (zIndex 50): windows
+            // must always sit on top of it, otherwise a maximized window's
+            // title bar is covered and its buttons are unreachable.
+            zIndex: 100 + state.nextZIndex,
             originalX: win.x,
             originalY: win.y,
             originalWidth: win.width,
@@ -119,7 +122,7 @@ export const useWindowStore = create<WindowStore>((set) => ({
                 originalY: willMaximize ? w.y : w.originalY,
                 originalWidth: willMaximize ? w.width : w.originalWidth,
                 originalHeight: willMaximize ? w.height : w.originalHeight,
-                zIndex: state.nextZIndex,
+                zIndex: 100 + state.nextZIndex,
               }
             : w,
         ),
@@ -130,7 +133,7 @@ export const useWindowStore = create<WindowStore>((set) => ({
   restoreWindow: (id) =>
     set((state) => ({
       windows: state.windows.map((w) =>
-        w.id === id ? { ...w, isMinimized: false, zIndex: state.nextZIndex } : w,
+        w.id === id ? { ...w, isMinimized: false, zIndex: 100 + state.nextZIndex } : w,
       ),
       nextZIndex: state.nextZIndex + 1,
     })),
@@ -138,7 +141,7 @@ export const useWindowStore = create<WindowStore>((set) => ({
   focusWindow: (id) =>
     set((state) => ({
       windows: state.windows.map((w) =>
-        w.id === id ? { ...w, zIndex: state.nextZIndex } : w,
+        w.id === id ? { ...w, zIndex: 100 + state.nextZIndex } : w,
       ),
       nextZIndex: state.nextZIndex + 1,
     })),
