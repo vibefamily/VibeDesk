@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { VaultWalletManager } from '@vibe/core/wallet'
 import { setupAgentIpc } from './ipc-agents'
 import { setupMarketIpc, stopMarketPolling } from './market'
+import { setupInfoIpc, getInfoManager } from './info'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -263,11 +264,15 @@ app.whenReady().then(async () => {
   // ticks to the renderer (fixes browser CORS on public endpoints).
   setupMarketIpc()
 
+  // Info Center: scheduled multi-source news/tweet pulls + local cache.
+  setupInfoIpc({ dataDir: app.getPath('userData') })
+
   // Agents run in the main process (same security boundary as the
   // wallet vault); wire them up after the window exists.
   await setupAgentIpc({
     getWallet: getWalletManager,
     configPath: path.join(app.getPath('userData'), 'agent-config.json'),
+    infoStore: () => getInfoManager(),
   })
 
   app.on('activate', () => {

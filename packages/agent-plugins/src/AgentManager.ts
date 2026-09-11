@@ -23,6 +23,8 @@ import { OpenAICompatibleProvider } from './llm/OpenAICompatibleProvider'
 import type { OpenAIConfig } from './llm/OpenAICompatibleProvider'
 import { createMarketTools } from './tools/marketTools'
 import { createNewsTool } from './tools/newsTools'
+import { createInfoReadTool } from './tools/infoTools'
+import type { InfoStore } from './tools/infoTools'
 import { createWalletReadTool } from './tools/walletTools'
 import type { WalletReadAccess } from './tools/walletTools'
 import { analyzeStock } from './analysis/ruleAnalyst'
@@ -85,6 +87,8 @@ export interface AgentManagerOptions {
   market: MarketDataAggregator
   /** Read-only wallet access (authorized wallets only). */
   walletAccess?: WalletReadAccess
+  /** Local information store (Info Center cache); enables read_information. */
+  infoStore?: InfoStore
 }
 
 export class AgentManager {
@@ -93,11 +97,13 @@ export class AgentManager {
   private listeners = new Set<Listener>()
   private market: MarketDataAggregator
   private walletAccess?: WalletReadAccess
+  private infoStore?: InfoStore
   private llmProvider: OpenAICompatibleProvider | null = null
 
   constructor(options: AgentManagerOptions) {
     this.market = options.market
     this.walletAccess = options.walletAccess
+    this.infoStore = options.infoStore
     for (const t of BUILTIN_TEMPLATES) {
       this.registerTemplate(t)
     }
@@ -196,6 +202,7 @@ export class AgentManager {
     const tools = [
       ...createMarketTools(this.market),
       ...(this.walletAccess ? [createWalletReadTool(this.walletAccess)] : []),
+      ...(this.infoStore ? [createInfoReadTool(this.infoStore)] : []),
       createNewsTool(),
     ]
     agent.registerTools(tools)

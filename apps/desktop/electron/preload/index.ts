@@ -176,6 +176,15 @@ const vibeAPI = {
       ipcRenderer.invoke('market:refreshSymbol', symbol),
   },
 
+  // Info Center (M3): multi-source news/tweet pulls
+  info: {
+    getState: () => ipcRenderer.invoke('info:getState'),
+    upsertSource: (input: unknown) => ipcRenderer.invoke('info:upsertSource', input),
+    deleteSource: (id: string) => ipcRenderer.invoke('info:deleteSource', id),
+    refreshNow: (id?: string) => ipcRenderer.invoke('info:refreshNow', id),
+    search: (query: unknown) => ipcRenderer.invoke('info:search', query),
+  },
+
   // Event listeners
   on: (channel: string, callback: (...args: unknown[]) => void) => {
     const validChannels = [
@@ -184,6 +193,7 @@ const vibeAPI = {
       'agent:proposal',
       'agent:event',
       'market:ticks',
+      'info:event',
     ]
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (_event, ...args) => callback(...args))

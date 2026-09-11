@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { ipcMain, webContents, app, BrowserWindow, shell } from "electron";
-import path, { dirname } from "node:path";
+import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { randomBytes as randomBytes$2, pbkdf2Sync, createCipheriv, createDecipheriv, scryptSync, randomUUID } from "node:crypto";
@@ -6956,7 +6956,7 @@ const STOCK_ANALYST_TEMPLATE = {
   icon: "📈",
   defaultIntervalMs: 3e5,
   defaultSymbols: ["TSLA", "NVDA"],
-  tools: ["get_price", "compare_prices", "list_authorized_wallets"],
+  tools: ["get_price", "compare_prices", "list_authorized_wallets", "read_information"],
   buildConfig: (id, name, model) => ({
     id,
     name,
@@ -6964,7 +6964,7 @@ const STOCK_ANALYST_TEMPLATE = {
     model,
     maxIterations: 6,
     temperature: 0.4,
-    tools: ["get_price", "compare_prices", "list_authorized_wallets"]
+    tools: ["get_price", "compare_prices", "list_authorized_wallets", "read_information"]
   }),
   buildPrompt: (symbols) => [
     `Analyze the following stocks now: ${symbols.join(", ")}.`,
@@ -7240,6 +7240,65 @@ ${lines.join("\n")}`,
     }
   };
 }
+function createInfoReadTool(store) {
+  return {
+    name: "read_information",
+    description: "Search locally cached market information (news headlines and tweets) for a symbol or keywords. Faster and more reliable than live fetching. Returns the top items with source and time.",
+    parameters: {
+      type: "object",
+      properties: {
+        symbols: {
+          type: "array",
+          items: { type: "string" },
+          description: 'Stock ticker symbols to filter by, e.g. ["TSLA", "NVDA"]'
+        },
+        query: {
+          type: "string",
+          description: "Free-text keyword to search for"
+        },
+        kind: {
+          type: "string",
+          enum: ["news", "tweet"],
+          description: "Only return news or tweets"
+        },
+        limit: {
+          type: "number",
+          description: "Maximum items to return (default 5)"
+        }
+      }
+    },
+    execute: async (args) => {
+      const symbols = Array.isArray(args.symbols) ? args.symbols.map((s) => String(s).toUpperCase().trim()).filter(Boolean) : [];
+      const query = String(args.query ?? "").trim();
+      const kind = args.kind === "tweet" ? "tweet" : args.kind === "news" ? "news" : void 0;
+      const limit = Math.min(10, Math.max(1, Number(args.limit) || 5));
+      try {
+        const items = await store.search({ symbols, query, kind, limit: 20 });
+        if (items.length === 0) {
+          return {
+            success: true,
+            content: "No cached information matches the query. Try fetch_news for live headlines."
+          };
+        }
+        const lines = items.slice(0, limit).map(
+          (it, i) => `${i + 1}. [${it.kind === "tweet" ? "tweet" : "news"}] ${it.title} — ${it.sourceName} (${it.publishedAt})${it.summary ? `
+   ${it.summary.slice(0, 160)}` : ""}`
+        );
+        return {
+          success: true,
+          content: `Cached information (${items.length} matches):
+${lines.join("\n")}`,
+          data: items.slice(0, limit)
+        };
+      } catch (err) {
+        return {
+          success: false,
+          content: `Info search failed: ${err instanceof Error ? err.message : String(err)}`
+        };
+      }
+    }
+  };
+}
 function createWalletReadTool(access) {
   return {
     name: "list_authorized_wallets",
@@ -7366,9 +7425,11 @@ class AgentManager {
     __publicField(this, "listeners", /* @__PURE__ */ new Set());
     __publicField(this, "market");
     __publicField(this, "walletAccess");
+    __publicField(this, "infoStore");
     __publicField(this, "llmProvider", null);
     this.market = options.market;
     this.walletAccess = options.walletAccess;
+    this.infoStore = options.infoStore;
     for (const t of BUILTIN_TEMPLATES) {
       this.registerTemplate(t);
     }
@@ -7448,6 +7509,7 @@ class AgentManager {
     const tools = [
       ...createMarketTools(this.market),
       ...this.walletAccess ? [createWalletReadTool(this.walletAccess)] : [],
+      ...this.infoStore ? [createInfoReadTool(this.infoStore)] : [],
       createNewsTool()
     ];
     agent.registerTools(tools);
@@ -8851,8 +8913,17 @@ function saveAgentConfig(config) {
 async function setupAgentIpc(options) {
   agentConfigPath = options.configPath;
   const market = await getMarketAggregator();
+  const resolveInfo = options.infoStore;
   agentManager = new AgentManager({
     market,
+    ...resolveInfo ? {
+      infoStore: {
+        search: (q) => {
+          var _a;
+          return ((_a = resolveInfo()) == null ? void 0 : _a.search(q)) ?? Promise.resolve([]);
+        }
+      }
+    } : {},
     walletAccess: {
       listAuthorizedWallets: () => {
         const vault = options.getWallet();
@@ -8921,6 +8992,303 @@ async function setupAgentIpc(options) {
     }
   );
   ipcMain.handle("agent:getLlmConfig", () => agentManager.getLlmConfig());
+}
+const MAX_CACHE = 1e3;
+const DEFAULT_SOURCES = [
+  {
+    id: "yahoo-tsla",
+    kind: "rss",
+    name: "Yahoo Finance - TSLA",
+    enabled: true,
+    url: "https://finance.yahoo.com/rss/headline?s=TSLA",
+    symbols: ["TSLA"],
+    intervalMinutes: 15
+  }
+];
+function stripHtml(html) {
+  return html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+}
+function detectSymbols(text, allSymbols) {
+  const upper = text.toUpperCase();
+  return allSymbols.filter((s) => new RegExp(`\\b${s}\\b`).test(upper));
+}
+function parseFeed(xml, limit) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  const items = [];
+  const itemRe = /<item>([\s\S]*?)<\/item>/g;
+  let match;
+  while ((match = itemRe.exec(xml)) !== null && items.length < limit) {
+    const block = match[1];
+    const title = ((_b = (_a = block.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)) == null ? void 0 : _a[1]) == null ? void 0 : _b.trim()) ?? "";
+    const link = ((_d = (_c = block.match(/<link>(.*?)<\/link>/)) == null ? void 0 : _c[1]) == null ? void 0 : _d.trim()) ?? "";
+    const pub = ((_f = (_e = block.match(/<pubDate>(.*?)<\/pubDate>/)) == null ? void 0 : _e[1]) == null ? void 0 : _f.trim()) ?? null;
+    const desc = ((_h = (_g = block.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/)) == null ? void 0 : _g[1]) == null ? void 0 : _h.trim()) ?? null;
+    if (title) {
+      items.push({
+        title: title.replace(/<!\[CDATA\[|\]\]>/g, "").trim(),
+        link,
+        publishedAt: pub,
+        description: desc ? stripHtml(desc).slice(0, 300) : void 0
+      });
+    }
+  }
+  return items;
+}
+class InfoManager {
+  constructor(options) {
+    __publicField(this, "sources", []);
+    __publicField(this, "items", []);
+    __publicField(this, "statuses", {});
+    __publicField(this, "pulling", /* @__PURE__ */ new Set());
+    __publicField(this, "timers", /* @__PURE__ */ new Map());
+    __publicField(this, "dataDir");
+    __publicField(this, "sourcesPath", "");
+    __publicField(this, "itemsPath", "");
+    this.dataDir = options.dataDir;
+    this.sourcesPath = join(options.dataDir, "info-sources.json");
+    this.itemsPath = join(options.dataDir, "info-items.json");
+  }
+  /** Load persisted state and (re)start schedulers. Call once at startup. */
+  init() {
+    this.load();
+    this.scheduleAll();
+  }
+  load() {
+    try {
+      if (existsSync(this.sourcesPath)) {
+        const raw = JSON.parse(readFileSync(this.sourcesPath, "utf8"));
+        if (Array.isArray(raw)) this.sources = raw.filter((s) => s && s.id && s.kind);
+      }
+    } catch (err) {
+      console.warn("[info] failed to load sources:", err);
+    }
+    if (this.sources.length === 0) {
+      this.sources = DEFAULT_SOURCES.map((s) => ({ ...s, symbols: [...s.symbols] }));
+      this.persistSources();
+    }
+    try {
+      if (existsSync(this.itemsPath)) {
+        const raw = JSON.parse(readFileSync(this.itemsPath, "utf8"));
+        if (Array.isArray(raw)) this.items = raw.slice(0, MAX_CACHE);
+      }
+    } catch (err) {
+      console.warn("[info] failed to load items:", err);
+    }
+  }
+  persistSources() {
+    try {
+      mkdirSync(this.dataDir, { recursive: true });
+      writeFileSync(this.sourcesPath, JSON.stringify(this.sources, null, 2), {
+        encoding: "utf8",
+        mode: 384
+      });
+    } catch (err) {
+      console.error("[info] failed to persist sources:", err);
+    }
+  }
+  persistItems() {
+    try {
+      writeFileSync(this.itemsPath, JSON.stringify(this.items.slice(0, MAX_CACHE), null, 2), {
+        encoding: "utf8",
+        mode: 384
+      });
+    } catch (err) {
+      console.error("[info] failed to persist items:", err);
+    }
+  }
+  setStatus(sourceId, patch) {
+    const cur = this.statuses[sourceId] ?? { sourceId, lastPullAt: null, lastCount: 0, error: null };
+    this.statuses[sourceId] = { ...cur, ...patch };
+  }
+  emit() {
+    for (const wc of webContents.getAllWebContents()) {
+      wc.send("info:event", this.getState());
+    }
+  }
+  getState() {
+    return { sources: this.sources, statuses: this.statuses, items: this.items.slice(0, 200) };
+  }
+  search(query) {
+    const q = (query.query ?? "").toLowerCase().trim();
+    const symbols = (query.symbols ?? []).map((s) => s.toUpperCase());
+    const kind = query.kind;
+    const limit = Math.min(50, Math.max(1, query.limit ?? 10));
+    const result = this.items.filter((it) => {
+      if (kind && it.kind !== kind) return false;
+      if (symbols.length > 0 && !it.symbols.some((s) => symbols.includes(s))) return false;
+      if (q) {
+        const hay = `${it.title} ${it.summary ?? ""} ${it.author ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).slice(0, limit);
+    return Promise.resolve(result);
+  }
+  /** Upsert (by id) or create a source; restarts its scheduler. */
+  upsertSource(input) {
+    const existing = input.id ? this.sources.find((s) => s.id === input.id) : void 0;
+    const source = existing ? { ...existing, ...input, id: existing.id } : {
+      id: input.id ?? `src-${randomUUID().slice(0, 8)}`,
+      kind: input.kind ?? "rss",
+      name: input.name ?? "New source",
+      enabled: input.enabled ?? true,
+      url: input.url,
+      symbols: input.symbols ?? [],
+      keywords: input.keywords,
+      intervalMinutes: Math.max(1, input.intervalMinutes ?? 15)
+    };
+    if (existing) {
+      this.sources = this.sources.map((s) => s.id === source.id ? source : s);
+    } else {
+      this.sources.push(source);
+    }
+    this.persistSources();
+    this.scheduleOne(source);
+    if (source.enabled && source.kind === "rss" && source.url) {
+      void this.pullSource(source.id);
+    }
+    return this.getState();
+  }
+  deleteSource(id) {
+    this.sources = this.sources.filter((s) => s.id !== id);
+    const timer = this.timers.get(id);
+    if (timer) clearInterval(timer);
+    this.timers.delete(id);
+    this.items = this.items.filter((it) => it.sourceId !== id);
+    this.persistSources();
+    this.persistItems();
+    return this.getState();
+  }
+  async refreshNow(id) {
+    const targets = id ? this.sources.filter((s) => s.id === id) : this.sources.filter((s) => s.enabled);
+    await Promise.all(targets.map((s) => this.pullSource(s.id)));
+    return this.getState();
+  }
+  /** Pull one source; guarded against overlapping pulls. */
+  async pullSource(sourceId) {
+    const source = this.sources.find((s) => s.id === sourceId);
+    if (!source) return;
+    if (this.pulling.has(sourceId)) return;
+    this.pulling.add(sourceId);
+    try {
+      if (source.kind === "twitter") {
+        const { APIFY_API_TOKEN } = process.env;
+        if (!APIFY_API_TOKEN) {
+          this.setStatus(sourceId, { lastPullAt: Date.now(), lastCount: 0, error: "Apify token not configured (env APIFY_API_TOKEN)" });
+          return;
+        }
+        await this.pullTwitter(source, APIFY_API_TOKEN);
+      } else if (source.url) {
+        await this.pullRss(source);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[info] pull failed for ${source.name}:`, message);
+      this.setStatus(sourceId, { lastPullAt: Date.now(), lastCount: 0, error: message });
+    } finally {
+      this.pulling.delete(sourceId);
+      this.emit();
+    }
+  }
+  async pullRss(source) {
+    const url = source.url;
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (VibeDesk)" } });
+    if (!res.ok) throw new Error(`RSS feed returned HTTP ${res.status}`);
+    const xml = await res.text();
+    const parsed = parseFeed(xml, 20);
+    const allSymbols = [.../* @__PURE__ */ new Set([...DEFAULT_STOCK_TICKERS, ...source.symbols])];
+    const newItems = parsed.map((p) => {
+      const text = `${p.title} ${p.description ?? ""}`;
+      const symbols = source.symbols.length > 0 ? source.symbols : detectSymbols(text, allSymbols);
+      return {
+        id: `${source.id}-${p.link}`,
+        sourceId: source.id,
+        sourceName: source.name,
+        kind: "news",
+        title: p.title,
+        url: p.link,
+        summary: p.description,
+        publishedAt: p.publishedAt ?? (/* @__PURE__ */ new Date()).toISOString(),
+        fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        symbols
+      };
+    });
+    if (newItems.length > 0) {
+      const known = new Set(this.items.map((it) => it.id));
+      const fresh = newItems.filter((it) => !known.has(it.id));
+      if (fresh.length > 0) {
+        this.items = [...fresh, ...this.items].slice(0, MAX_CACHE);
+        this.persistItems();
+      }
+    }
+    this.setStatus(source.id, { lastPullAt: Date.now(), lastCount: newItems.length, error: null });
+    console.log(`[info] ${source.name}: ${newItems.length} items (${this.items.length} cached)`);
+  }
+  /** Twitter via Apify: fetch a keyword search feed as JSON. */
+  async pullTwitter(source, token) {
+    const keywords = source.keywords ?? [];
+    if (keywords.length === 0) throw new Error("No Twitter keywords configured");
+    const url = `https://api.apify.com/v2/acts/apidojo~tweet-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ searchTerms: keywords, maxItems: 20 })
+    });
+    if (!res.ok) throw new Error(`Apify returned HTTP ${res.status}`);
+    const tweets = await res.json();
+    const allSymbols = [.../* @__PURE__ */ new Set([...DEFAULT_STOCK_TICKERS, ...source.symbols])];
+    const newItems = tweets.filter((t) => t.text).map((t, i) => {
+      var _a, _b;
+      return {
+        id: `${source.id}-${i}-${t.url ?? Math.random().toString(36).slice(2)}`,
+        sourceId: source.id,
+        sourceName: source.name,
+        kind: "tweet",
+        title: (t.text ?? "").slice(0, 280),
+        url: t.url ?? "https://x.com",
+        author: ((_a = t.user) == null ? void 0 : _a.name) ?? ((_b = t.user) == null ? void 0 : _b.username),
+        publishedAt: t.createdAt ?? (/* @__PURE__ */ new Date()).toISOString(),
+        fetchedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        symbols: detectSymbols(t.text ?? "", allSymbols)
+      };
+    });
+    if (newItems.length > 0) {
+      this.items = [...newItems, ...this.items].slice(0, MAX_CACHE);
+      this.persistItems();
+    }
+    this.setStatus(source.id, { lastPullAt: Date.now(), lastCount: newItems.length, error: null });
+  }
+  scheduleAll() {
+    for (const source of this.sources) this.scheduleOne(source);
+  }
+  scheduleOne(source) {
+    const old = this.timers.get(source.id);
+    if (old) clearInterval(old);
+    if (!source.enabled) return;
+    const ms = Math.max(6e4, source.intervalMinutes * 6e4);
+    const timer = setInterval(() => {
+      void this.pullSource(source.id);
+    }, ms);
+    this.timers.set(source.id, timer);
+  }
+}
+let infoManager = null;
+function setupInfoIpc(options) {
+  const manager = new InfoManager({ dataDir: options.dataDir });
+  manager.init();
+  infoManager = manager;
+  ipcMain.handle("info:getState", () => manager.getState());
+  ipcMain.handle(
+    "info:upsertSource",
+    (_e, input) => manager.upsertSource(input ?? {})
+  );
+  ipcMain.handle("info:deleteSource", (_e, id) => manager.deleteSource(String(id)));
+  ipcMain.handle("info:refreshNow", (_e, id) => manager.refreshNow(id ? String(id) : void 0));
+  ipcMain.handle("info:search", (_e, query) => manager.search(query ?? {}));
+  void manager.refreshNow().catch(() => void 0);
+}
+function getInfoManager() {
+  return infoManager;
 }
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 const DIST_ELECTRON = path.join(__dirname$1, "..");
@@ -9096,9 +9464,11 @@ app.whenReady().then(async () => {
   setupIpcHandlers();
   createWindow();
   setupMarketIpc();
+  setupInfoIpc({ dataDir: app.getPath("userData") });
   await setupAgentIpc({
     getWallet: getWalletManager,
-    configPath: path.join(app.getPath("userData"), "agent-config.json")
+    configPath: path.join(app.getPath("userData"), "agent-config.json"),
+    infoStore: () => getInfoManager()
   });
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

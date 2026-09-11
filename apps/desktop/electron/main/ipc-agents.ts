@@ -14,6 +14,7 @@ import type { OpenAIConfig } from '@vibe/agent-plugins'
 import type { MarketDataAggregator } from '@vibe/core'
 import type { VaultWalletManager } from '@vibe/core/wallet'
 import { getMarketAggregator } from './market'
+import type { InfoManager } from './info'
 
 let agentManager: AgentManager | null = null
 let agentConfigPath = ''
@@ -61,7 +62,12 @@ function saveAgentConfig(config: OpenAIConfig | null): void {
 
 /** Wire up the agent IPC surface. */
 export async function setupAgentIpc(
-  options: { getWallet: () => VaultWalletManager; configPath: string },
+  options: {
+    getWallet: () => VaultWalletManager
+    configPath: string
+    /** Resolve the Info Center manager (M3); enables the read_information tool. */
+    infoStore?: () => InfoManager | null
+  },
 ): Promise<void> {
   agentConfigPath = options.configPath
 
@@ -70,8 +76,16 @@ export async function setupAgentIpc(
   // so the UI and the agents always see the same prices).
   const market: MarketDataAggregator = await getMarketAggregator()
 
+  const resolveInfo = options.infoStore
   agentManager = new AgentManager({
     market,
+    ...(resolveInfo
+      ? {
+          infoStore: {
+            search: (q) => resolveInfo()?.search(q) ?? Promise.resolve([]),
+          },
+        }
+      : {}),
     walletAccess: {
       listAuthorizedWallets: () => {
         const vault = options.getWallet()

@@ -17,6 +17,7 @@ const DESKTOP_ICONS = [
   { key: 'agents', label: 'AI Agents', icon: '🤖', hint: 'Agent analysis & skills' },
   { key: 'wallets', label: 'Wallet Manager', icon: '👛', hint: 'Local encrypted multi-wallet vault' },
   { key: 'data', label: 'Data Sources', icon: '📡', hint: 'Data source management' },
+  { key: 'info', label: 'Info Center', icon: '📰', hint: 'News & tweet feeds for agents' },
 ]
 
 const Desktop: React.FC = () => {

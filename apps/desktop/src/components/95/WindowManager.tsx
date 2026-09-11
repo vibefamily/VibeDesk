@@ -13,6 +13,7 @@ import Agents from '../../views/Agents'
 import Wallets from '../../views/Wallets'
 import DataSources from '../../views/DataSources'
 import Settings from '../../views/Settings'
+import InfoCenter from '../../views/InfoCenter'
 import Dashboard from '../../views/Dashboard'
 import Strategies from '../../views/Strategies'
 import Portfolio from '../../views/Portfolio'
@@ -23,6 +24,7 @@ const WINDOW_COMPONENTS: Record<string, React.FC> = {
   wallets: Wallets,
   data: DataSources,
   settings: Settings,
+  info: InfoCenter,
   dashboard: Dashboard,
   strategies: Strategies,
   portfolio: Portfolio,

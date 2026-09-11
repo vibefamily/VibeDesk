@@ -524,3 +524,64 @@ export type SystemEvent =
   | { type: 'agent_proposal'; data: AgentTradeProposal }
   | { type: 'error'; source: string; message: string; level: 'warning' | 'error' | 'fatal' }
   | { type: 'connection_status'; source: string; connected: boolean }
+
+// ---------------------------------------------------------------------------
+// Info management types (M3): multi-source news & social feeds
+// ---------------------------------------------------------------------------
+
+/** Kind of an information source. */
+export type InfoSourceKind = 'rss' | 'twitter'
+
+/** A user-configurable information source. */
+export interface InfoSourceConfig {
+  id: string
+  kind: InfoSourceKind
+  name: string
+  enabled: boolean
+  /** RSS feed URL (kind = 'rss'). */
+  url?: string
+  /** Symbols this source focuses on (used for filtering + labels). */
+  symbols: string[]
+  /** Twitter keywords to follow (kind = 'twitter'). */
+  keywords?: string[]
+  /** Pull interval in minutes. */
+  intervalMinutes: number
+}
+
+/** A single information item (news headline or tweet). */
+export interface InfoItem {
+  id: string
+  sourceId: string
+  sourceName: string
+  kind: 'news' | 'tweet'
+  title: string
+  url: string
+  summary?: string
+  author?: string
+  publishedAt: string
+  fetchedAt: string
+  symbols: string[]
+}
+
+/** Per-source pull status, exposed to the UI. */
+export interface InfoSourceStatus {
+  sourceId: string
+  lastPullAt: number | null
+  lastCount: number
+  error: string | null
+}
+
+/** Full state snapshot for the Info Center view. */
+export interface InfoState {
+  sources: InfoSourceConfig[]
+  statuses: Record<string, InfoSourceStatus>
+  items: InfoItem[]
+}
+
+/** Search query used by agents and the UI. */
+export interface InfoSearchQuery {
+  query?: string
+  symbols?: string[]
+  kind?: 'news' | 'tweet'
+  limit?: number
+}

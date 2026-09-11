@@ -54,7 +54,7 @@ export const STOCK_ANALYST_TEMPLATE: AgentTemplate = {
   icon: '📈',
   defaultIntervalMs: 300_000,
   defaultSymbols: ['TSLA', 'NVDA'],
-  tools: ['get_price', 'compare_prices', 'list_authorized_wallets'],
+  tools: ['get_price', 'compare_prices', 'list_authorized_wallets', 'read_information'],
   buildConfig: (id, name, model) => ({
     id,
     name,
@@ -62,7 +62,7 @@ export const STOCK_ANALYST_TEMPLATE: AgentTemplate = {
     model,
     maxIterations: 6,
     temperature: 0.4,
-    tools: ['get_price', 'compare_prices', 'list_authorized_wallets'],
+    tools: ['get_price', 'compare_prices', 'list_authorized_wallets', 'read_information'],
   }),
   buildPrompt: (symbols) =>
     [

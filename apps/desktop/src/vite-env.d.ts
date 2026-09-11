@@ -145,12 +145,66 @@ interface MarketApiType {
   }>
 }
 
+interface InfoApiType {
+  getState: () => Promise<InfoStateApiType>
+  upsertSource: (input: Partial<InfoSourceConfigApiType> & { id?: string }) => Promise<InfoStateApiType>
+  deleteSource: (id: string) => Promise<InfoStateApiType>
+  refreshNow: (id?: string) => Promise<InfoStateApiType>
+  search: (query: InfoSearchQueryApiType) => Promise<InfoItemApiType[]>
+}
+
+interface InfoSourceConfigApiType {
+  id: string
+  kind: 'rss' | 'twitter'
+  name: string
+  enabled: boolean
+  url?: string
+  symbols: string[]
+  keywords?: string[]
+  intervalMinutes: number
+}
+
+interface InfoItemApiType {
+  id: string
+  sourceId: string
+  sourceName: string
+  kind: 'news' | 'tweet'
+  title: string
+  url: string
+  summary?: string
+  author?: string
+  publishedAt: string
+  fetchedAt: string
+  symbols: string[]
+}
+
+interface InfoSourceStatusApiType {
+  sourceId: string
+  lastPullAt: number | null
+  lastCount: number
+  error: string | null
+}
+
+interface InfoStateApiType {
+  sources: InfoSourceConfigApiType[]
+  statuses: Record<string, InfoSourceStatusApiType>
+  items: InfoItemApiType[]
+}
+
+interface InfoSearchQueryApiType {
+  query?: string
+  symbols?: string[]
+  kind?: 'news' | 'tweet'
+  limit?: number
+}
+
 interface VibeAPI {
   getAppInfo: () => Promise<{ version: string; name: string; platform: string }>
   ping: () => Promise<string>
   wallet: WalletApiType
   agent: AgentApiType
   market: MarketApiType
+  info: InfoApiType
   on: (channel: string, callback: (...args: unknown[]) => void) => void
 }
 
