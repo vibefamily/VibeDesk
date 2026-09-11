@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand'
-import type { WalletMeta } from '@vibe/core'
+import type { WalletMeta } from '../types/wallet'
 
 export interface WalletState {
   unlocked: boolean

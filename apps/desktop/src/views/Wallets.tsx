@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
-import type { WalletMeta } from '@vibe/core'
+import type { WalletMeta } from '../types/wallet'
 import { useWalletStore } from '../stores/walletStore'
 
 // --- Small UI primitives ----------------------------------------------------

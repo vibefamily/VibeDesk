@@ -18,11 +18,19 @@ export default defineConfig({
         },
       },
       {
-        // Preload script
+        // Preload script - must be CommonJS (Electron requires preloads
+        // with require(), so force cjs output with a .cjs extension even
+        // though the package is type: module).
         entry: 'electron/preload/index.ts',
         vite: {
           build: {
             outDir: 'dist-electron/preload',
+            rollupOptions: {
+              output: {
+                format: 'cjs',
+                entryFileNames: '[name].cjs',
+              },
+            },
           },
         },
       },
