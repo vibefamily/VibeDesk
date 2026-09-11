@@ -7,7 +7,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron'
-import type { WalletMeta } from '@vibe/core'
+import type { WalletMeta } from '@vibe/core/wallet'
 
 /** Wallet IPC surface exposed to the renderer. */
 export interface WalletApi {

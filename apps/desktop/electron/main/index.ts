@@ -8,7 +8,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { VaultWalletManager } from '@vibe/core'
+import { VaultWalletManager } from '@vibe/core/wallet'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

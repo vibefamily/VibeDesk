@@ -12,12 +12,14 @@ import type { TickData } from '@vibe/shared'
 import { DEFAULT_STOCK_TICKERS } from '@vibe/shared'
 import { createDefaultDataSources } from '@vibe/data-sources'
 import type { DataSourceRegistry } from '@vibe/data-sources'
-import type { MarketDataAggregator } from '@vibe/core'
+
+/** Shape of the aggregator produced by createDefaultDataSources(). */
+type Aggregator = Awaited<ReturnType<typeof createDefaultDataSources>>['aggregator']
 
 interface MarketState {
   ready: boolean
   error: string | null
-  aggregator: MarketDataAggregator | null
+  aggregator: Aggregator | null
   registry: DataSourceRegistry | null
   /** symbol -> providerId -> latest tick */
   ticks: Record<string, Record<string, TickData>>
