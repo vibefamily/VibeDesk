@@ -18,17 +18,18 @@ export default defineConfig({
         },
       },
       {
-        // Preload script - must be CommonJS (Electron requires preloads
-        // with require(), so force cjs output with a .cjs extension even
-        // though the package is type: module).
+        // Preload script. Electron >=28 supports ESM preloads, but only
+        // when the file extension is .mjs (the package is type:module and
+        // vite-plugin-electron keeps import statements as-is), so we emit
+        // index.mjs and point the main process at it.
         entry: 'electron/preload/index.ts',
         vite: {
           build: {
             outDir: 'dist-electron/preload',
             rollupOptions: {
               output: {
-                format: 'cjs',
-                entryFileNames: '[name].cjs',
+                format: 'es',
+                entryFileNames: '[name].mjs',
               },
             },
           },
@@ -41,6 +42,14 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
+  },
+  optimizeDeps: {
+    // Never pre-bundle workspace packages: @vibe/core contains
+    // main-process-only node:fs code that must not enter the renderer
+    // bundle, and @vibe/shared is plain TS that Vite can transform
+    // directly. Pre-bundling them is what caused the
+    // "Dynamic require of fs is not supported" white screen.
+    exclude: ['@vibe/core', '@vibe/shared'],
   },
   server: {
     port: 5173,

@@ -38,7 +38,7 @@ function createWindow() {
     frame: true,
     titleBarStyle: 'hiddenInset',
     webPreferences: {
-      preload: path.join(DIST_ELECTRON, 'preload/index.cjs'),
+      preload: path.join(DIST_ELECTRON, 'preload/index.mjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
