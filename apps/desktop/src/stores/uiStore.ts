@@ -46,9 +46,12 @@ const NATIVE_TITLEBAR_KEY = 'vibedesk.nativeTitleBar'
 
 function loadNativeTitleBar(): boolean {
   try {
-    return localStorage.getItem(NATIVE_TITLEBAR_KEY) === '1'
+    const v = localStorage.getItem(NATIVE_TITLEBAR_KEY)
+    // Default to the native OS title bar (most robust window controls);
+    // the immersive 95-style edge-to-edge mode stays available.
+    return v === null ? true : v === '1'
   } catch {
-    return false
+    return true
   }
 }
 

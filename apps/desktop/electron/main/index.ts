@@ -83,7 +83,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     frame: true,
-    titleBarStyle: uiCfg.titleBarStyle ?? 'hiddenInset',
+    titleBarStyle: uiCfg.titleBarStyle ?? 'default',
     webPreferences: {
       preload: path.join(DIST_ELECTRON, 'preload/index.mjs'),
       nodeIntegration: false,
