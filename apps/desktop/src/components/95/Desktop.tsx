@@ -26,6 +26,12 @@ const Desktop: React.FC = () => {
   const [startMenuOpen, setStartMenuOpen] = useState(false)
   const openWindow = useWindowStore((s) => s.openWindow)
   const zoom = useUiStore((s) => s.zoom)
+  // When any window is maximized its title bar overlaps the app drag
+  // strip (0-36px). -webkit-app-region: drag intercepts mouse events at
+  // the native level - CSS z-index cannot beat it - so the strip must
+  // stop capturing clicks, otherwise the maximized window's minimize /
+  // restore / close buttons stay dead.
+  const anyMaximized = useWindowStore((s) => s.windows.some((w) => w.isMaximized))
 
   return (
     <div
@@ -50,6 +56,7 @@ const Desktop: React.FC = () => {
           right: 0,
           height: 36,
           WebkitAppRegion: 'drag',
+          pointerEvents: anyMaximized ? 'none' : undefined,
           zIndex: 50,
         } as React.CSSProperties}
       />
