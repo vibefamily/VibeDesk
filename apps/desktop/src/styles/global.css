@@ -153,3 +153,18 @@ input:focus, select:focus, textarea:focus {
 .mt-sm { margin-top: var(--space-sm); }
 .mt-md { margin-top: var(--space-md); }
 .mt-lg { margin-top: var(--space-lg); }
+
+/* Form controls always render dark text on white (Windows-style inset).
+   The default body text color is near-white, so without this any unstyled
+   input inherits white-on-white and becomes invisible. */
+input,
+select,
+textarea {
+  color: #000;
+  caret-color: #000;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6e7681;
+}

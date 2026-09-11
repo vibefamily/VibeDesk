@@ -355,6 +355,8 @@ const LlmSettings: React.FC = () => {
     border: '2px inset',
     borderColor: '#808080 #fff #fff #808080',
     background: '#fff',
+    color: '#000',
+    caretColor: '#000',
   }
   const miniBtn: React.CSSProperties = {
     padding: '3px 10px',
