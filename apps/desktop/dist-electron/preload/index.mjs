@@ -60,13 +60,30 @@ const vibeAPI = {
       "market:ticks",
       "info:event"
     ];
-    if (validChannels.includes(channel)) {
-      const listener = (_event, ...args) => callback(...args);
-      ipcRenderer.on(channel, listener);
-      return () => ipcRenderer.removeListener(channel, listener);
+    if (!validChannels.includes(channel)) return;
+    const listener = (_event, ...args) => callback(...args);
+    const registry = ipcRenderer.__vibeListeners ?? /* @__PURE__ */ new Map();
+    let byCallback = registry.get(channel);
+    if (!byCallback) {
+      byCallback = /* @__PURE__ */ new Map();
+      registry.set(channel, byCallback);
     }
+    byCallback.set(callback, listener);
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+      byCallback.delete(callback);
+    };
   },
   off: (channel, callback) => {
+    const registry = ipcRenderer.__vibeListeners;
+    const byCallback = registry == null ? void 0 : registry.get(channel);
+    const listener = byCallback == null ? void 0 : byCallback.get(callback);
+    if (listener) {
+      ipcRenderer.removeListener(channel, listener);
+      byCallback == null ? void 0 : byCallback.delete(callback);
+      return;
+    }
     ipcRenderer.removeListener(channel, callback);
   }
 };

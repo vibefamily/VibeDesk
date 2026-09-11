@@ -199,15 +199,49 @@ const vibeAPI = {
       'market:ticks',
       'info:event',
     ]
-    if (validChannels.includes(channel)) {
-      const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void =>
-        callback(...args)
-      ipcRenderer.on(channel, listener)
-      return () => ipcRenderer.removeListener(channel, listener)
+    if (!validChannels.includes(channel)) return
+    // Keep a per-channel registry of the wrapped listeners so `off` can
+    // remove exactly the listener that was registered. Without this the
+    // wrapper and the raw callback never match and every subscribe leaks
+    // a listener - which made agent events apply N times and duplicated
+    // chat messages many-fold.
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]): void =>
+      callback(...args)
+    const registry = (ipcRenderer as unknown as {
+      __vibeListeners?: Map<
+        string,
+        Map<(...args: unknown[]) => void, (event: Electron.IpcRendererEvent, ...args: unknown[]) => void>
+      >
+    }).__vibeListeners ?? new Map()
+    let byCallback = registry.get(channel)
+    if (!byCallback) {
+      byCallback = new Map()
+      registry.set(channel, byCallback)
+    }
+    byCallback.set(callback, listener)
+    ipcRenderer.on(channel, listener)
+    return () => {
+      ipcRenderer.removeListener(channel, listener)
+      byCallback!.delete(callback)
     }
   },
   off: (channel: string, callback: (...args: unknown[]) => void) => {
-    ipcRenderer.removeListener(channel, callback)
+    // Resolve the wrapped listener for this exact callback (they never
+    // match directly) and remove it, so listeners never leak.
+    const registry = (ipcRenderer as unknown as {
+      __vibeListeners?: Map<
+        string,
+        Map<(...args: unknown[]) => void, (event: Electron.IpcRendererEvent, ...args: unknown[]) => void>
+      >
+    }).__vibeListeners
+    const byCallback = registry?.get(channel)
+    const listener = byCallback?.get(callback)
+    if (listener) {
+      ipcRenderer.removeListener(channel, listener)
+      byCallback?.delete(callback)
+      return
+    }
+    ipcRenderer.removeListener(channel, callback as never)
   },
 }
 

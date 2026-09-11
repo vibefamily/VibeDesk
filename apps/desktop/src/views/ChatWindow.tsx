@@ -40,6 +40,10 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
   const [sending, setSending] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+  // Hard re-entrancy lock: React state updates are async, so `sending`
+  // alone cannot stop a second Enter / button click from entering send()
+  // in the same tick (which is how duplicate messages were produced).
+  const sendingRef = useRef(false)
 
   const agent = agents.find((a) => a.id === agentId) ?? null
   const canChat = mode === 'llm' && agent !== null
@@ -56,8 +60,13 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
         event as Parameters<ReturnType<typeof useAgentStore.getState>['applyEvent']>[0],
       )
     }
-    window.vibeAPI.on('agent:event', handler)
-    return () => window.vibeAPI.off('agent:event', handler)
+    // Use the cleanup returned by `on` so the exact wrapped listener is
+    // removed - `off` alone cannot pair the wrapper with the raw callback.
+    const unsubscribe = window.vibeAPI.on('agent:event', handler)
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe()
+      else window.vibeAPI.off('agent:event', handler)
+    }
   }, [])
 
   // Consume a chat intent addressed to this session.
@@ -86,7 +95,8 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
 
   const send = async (): Promise<void> => {
     const text = input.trim()
-    if (!text || sending || !agent || mode !== 'llm') return
+    if (!text || sendingRef.current || !agent || mode !== 'llm') return
+    sendingRef.current = true
     setSending(true)
     setInput('')
     try {
@@ -94,6 +104,7 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
     } catch {
       // errors surface through the event stream
     } finally {
+      sendingRef.current = false
       setSending(false)
     }
   }

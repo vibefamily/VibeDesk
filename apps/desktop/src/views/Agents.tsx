@@ -326,9 +326,12 @@ const Agents: React.FC = () => {
     const handler = (event: unknown) => {
       useAgentStore.getState().applyEvent(event as ReturnType<typeof useAgentStore.getState>['applyEvent'] extends (e: infer E) => void ? E : never)
     }
-    window.vibeAPI.on('agent:event', handler)
-    // The app shell never unmounts this view; listener persists for the
-    // session (unmatched agent ids are no-ops).
+    const unsubscribe = window.vibeAPI.on('agent:event', handler)
+    // Use the `on` cleanup so the exact listener is removed on unmount
+    // (prevents duplicate event application when windows open/close).
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe()
+    }
   }, [])
 
   const onSubmit = useCallback(async () => {
