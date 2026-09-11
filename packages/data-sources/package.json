@@ -14,7 +14,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@vibe/shared": "workspace:*",
