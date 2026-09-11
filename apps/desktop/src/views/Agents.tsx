@@ -47,19 +47,20 @@ const btnDanger: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  padding: '8px 10px',
-  borderRadius: '6px',
-  border: '1px solid var(--color-border)',
+  padding: '4px 8px',
+  borderRadius: 0,
+  border: '2px inset',
+  borderColor: '#808080 #fff #fff #808080',
   background: 'var(--color-bg-tertiary)',
   color: 'var(--color-text-primary)',
-  fontSize: 'var(--font-md)',
+  fontSize: 12,
 }
 
 const cardStyle: React.CSSProperties = {
   background: 'var(--color-bg-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: '12px',
-  padding: 'var(--space-lg)',
+  border: '2px outset',
+  borderColor: '#fff #808080 #808080 #fff',
+  padding: 10,
 }
 
 function fmtTime(ts: number | null): string {
@@ -238,7 +239,7 @@ const Agents: React.FC = () => {
   }, [templateId, name, symbols, create])
 
   return (
-    <div style={{ padding: 'var(--space-xl)', maxWidth: 900 }}>
+    <div style={{ padding: 10, maxWidth: 900 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>Agents</h2>
         <span
@@ -267,11 +268,12 @@ const Agents: React.FC = () => {
       {mode === 'rule' && (
         <div
           style={{
-            marginTop: 'var(--space-md)',
-            padding: '10px 14px',
-            borderRadius: 8,
+            marginTop: 8,
+            padding: '6px 10px',
+            borderRadius: 0,
             background: 'rgba(210,153,34,0.08)',
-            border: '1px solid rgba(210,153,34,0.25)',
+            border: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
             color: 'var(--color-warning)',
             fontSize: 'var(--font-sm)',
           }}
@@ -284,9 +286,9 @@ const Agents: React.FC = () => {
       {error && (
         <div
           style={{
-            marginTop: 'var(--space-md)',
-            padding: '10px 14px',
-            borderRadius: 8,
+            marginTop: 8,
+            padding: '6px 10px',
+            borderRadius: 0,
             background: 'rgba(248,81,73,0.1)',
             border: '1px solid rgba(248,81,73,0.3)',
             color: 'var(--color-danger)',

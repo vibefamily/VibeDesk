@@ -8709,10 +8709,11 @@ async function createDefaultDataSources() {
   }
   return { aggregator, registry };
 }
-const POLL_MS = 1e4;
+const POLL_MS = 15e3;
 const CONCURRENCY = 4;
 let dataSourcesPromise = null;
 let pollTimer = null;
+let snapshotting = false;
 function getMarketDataSources() {
   if (!dataSourcesPromise) {
     dataSourcesPromise = createDefaultDataSources();
@@ -8740,12 +8741,12 @@ async function snapshotSymbol(symbol) {
   }
   return { ticks, unavailable: failed };
 }
-async function takeSnapshot() {
-  const symbols = [...DEFAULT_STOCK_TICKERS];
+async function takeSnapshot(symbols) {
+  const list = [...DEFAULT_STOCK_TICKERS];
   const ticks = {};
   const unavailable = {};
-  for (let i = 0; i < symbols.length; i += CONCURRENCY) {
-    const batch = symbols.slice(i, i + CONCURRENCY);
+  for (let i = 0; i < list.length; i += CONCURRENCY) {
+    const batch = list.slice(i, i + CONCURRENCY);
     const results = await Promise.all(batch.map((s) => snapshotSymbol(s)));
     results.forEach((result, j) => {
       ticks[batch[j]] = result.ticks;
@@ -8753,6 +8754,25 @@ async function takeSnapshot() {
     });
   }
   return { ticks, unavailable, lastUpdated: Date.now() };
+}
+async function pollOnce() {
+  if (snapshotting) return;
+  snapshotting = true;
+  try {
+    const snap = await takeSnapshot().catch(() => null);
+    if (snap) {
+      const count = Object.values(snap.ticks).reduce(
+        (sum, t) => sum + Object.keys(t).length,
+        0
+      );
+      console.log(`[market] poll round: ${count} live ticks`);
+      broadcast(snap);
+    } else {
+      console.warn("[market] poll round failed; retrying next interval");
+    }
+  } finally {
+    snapshotting = false;
+  }
 }
 function broadcast(snapshot) {
   for (const wc of webContents.getAllWebContents()) {
@@ -8763,8 +8783,8 @@ function setupMarketIpc() {
   ipcMain.handle("market:getState", async () => {
     const ds = await getMarketDataSources();
     const manifests = ds.registry.list().map((e) => e.manifest);
-    const snapshot = await takeSnapshot();
-    return { ready: true, manifests, ...snapshot };
+    void pollOnce();
+    return { ready: true, manifests, ticks: {}, unavailable: {}, lastUpdated: Date.now() };
   });
   ipcMain.handle("market:refreshSymbol", async (_e, symbol) => {
     const result = await snapshotSymbol(String(symbol).toUpperCase());
@@ -8777,9 +8797,8 @@ function setupMarketIpc() {
     return snap;
   });
   if (!pollTimer) {
-    pollTimer = setInterval(async () => {
-      const snap = await takeSnapshot().catch(() => null);
-      if (snap) broadcast(snap);
+    pollTimer = setInterval(() => {
+      void pollOnce();
     }, POLL_MS);
   }
 }

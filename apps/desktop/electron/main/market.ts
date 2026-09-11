@@ -14,11 +14,13 @@ import type { DefaultDataSources } from '@vibe/data-sources'
 import { DEFAULT_STOCK_TICKERS } from '@vibe/shared'
 import type { TickData } from '@vibe/shared'
 
-const POLL_MS = 10_000
+const POLL_MS = 15_000
 const CONCURRENCY = 4
 
 let dataSourcesPromise: Promise<DefaultDataSources> | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
+/** Guards against overlapping snapshot rounds (snapshot can outlast POLL_MS). */
+let snapshotting = false
 
 export function getMarketDataSources(): Promise<DefaultDataSources> {
   if (!dataSourcesPromise) {
@@ -59,15 +61,15 @@ async function snapshotSymbol(
   return { ticks, unavailable: failed }
 }
 
-async function takeSnapshot(): Promise<MarketSnapshot> {
-  const symbols = [...DEFAULT_STOCK_TICKERS]
+async function takeSnapshot(symbols?: string[]): Promise<MarketSnapshot> {
+  const list = symbols && symbols.length > 0 ? symbols : [...DEFAULT_STOCK_TICKERS]
   const ticks: Record<string, Record<string, TickData>> = {}
   const unavailable: Record<string, string[]> = {}
 
   // Snapshot symbols with limited concurrency to stay gentle on the
   // free public endpoints (Robinhood / Yahoo).
-  for (let i = 0; i < symbols.length; i += CONCURRENCY) {
-    const batch = symbols.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < list.length; i += CONCURRENCY) {
+    const batch = list.slice(i, i + CONCURRENCY)
     const results = await Promise.all(batch.map((s) => snapshotSymbol(s)))
     results.forEach((result, j) => {
       ticks[batch[j]!] = result.ticks
@@ -76,6 +78,27 @@ async function takeSnapshot(): Promise<MarketSnapshot> {
   }
 
   return { ticks, unavailable, lastUpdated: Date.now() }
+}
+
+/** One snapshot round; skips if the previous round is still running. */
+async function pollOnce(): Promise<void> {
+  if (snapshotting) return
+  snapshotting = true
+  try {
+    const snap = await takeSnapshot().catch(() => null)
+    if (snap) {
+      const count = Object.values(snap.ticks).reduce(
+        (sum, t) => sum + Object.keys(t).length,
+        0,
+      )
+      console.log(`[market] poll round: ${count} live ticks`)
+      broadcast(snap)
+    } else {
+      console.warn('[market] poll round failed; retrying next interval')
+    }
+  } finally {
+    snapshotting = false
+  }
 }
 
 function broadcast(snapshot: MarketSnapshot): void {
@@ -89,8 +112,10 @@ export function setupMarketIpc(): void {
   ipcMain.handle('market:getState', async () => {
     const ds = await getMarketDataSources()
     const manifests = ds.registry.list().map((e) => e.manifest)
-    const snapshot = await takeSnapshot()
-    return { ready: true, manifests, ...snapshot }
+    // Kick off an immediate snapshot round; prices stream in over
+    // 'market:ticks' within a few seconds.
+    void pollOnce()
+    return { ready: true, manifests, ticks: {}, unavailable: {}, lastUpdated: Date.now() }
   })
 
   ipcMain.handle('market:refreshSymbol', async (_e, symbol: string) => {
@@ -105,9 +130,8 @@ export function setupMarketIpc(): void {
   })
 
   if (!pollTimer) {
-    pollTimer = setInterval(async () => {
-      const snap = await takeSnapshot().catch(() => null)
-      if (snap) broadcast(snap)
+    pollTimer = setInterval(() => {
+      void pollOnce()
     }, POLL_MS)
   }
 }

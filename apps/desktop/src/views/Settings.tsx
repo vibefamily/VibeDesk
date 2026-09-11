@@ -4,6 +4,8 @@
 
 import React, { useEffect, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
+import { useWalletStore } from '../stores/walletStore'
+import { useWindowStore } from '../components/95/windowStore'
 
 type SettingsTab = 'general' | 'wallets' | 'exchanges' | 'risk' | 'models'
 
@@ -55,109 +57,28 @@ const Settings: React.FC = () => {
         )
 
       case 'wallets':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500 }}>Connected Wallets</span>
-              <button
-                style={{
-                  padding: 'var(--space-xs) var(--space-md)',
-                  backgroundColor: 'var(--color-accent)',
-                  color: 'white',
-                  borderRadius: 'var(--radius-md)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 'var(--font-sm)',
-                }}
-              >
-                + Add Wallet
-              </button>
-            </div>
-            {[
-              { name: 'Main Wallet', chain: 'Ethereum', address: '0x1234...5678', type: 'MetaMask' },
-              { name: 'Solana Wallet', chain: 'Solana', address: '7xKX...9mPq', type: 'Phantom' },
-            ].map((wallet) => (
-              <div
-                key={wallet.name}
-                style={{
-                  padding: 'var(--space-md)',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 500 }}>{wallet.name}</div>
-                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-muted)' }}>
-                    {wallet.chain} · {wallet.type} · {wallet.address}
-                  </div>
-                </div>
-                <span style={{ fontSize: 'var(--font-sm)', color: 'var(--color-success)' }}>
-                  Connected
-                </span>
-              </div>
-            ))}
-          </div>
-        )
+        return <WalletsSettings />
 
       case 'exchanges':
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500 }}>Exchange API Keys</span>
+              <span style={{ fontWeight: 500, fontSize: 13 }}>Exchange &amp; Data Source Keys</span>
               <button
-                style={{
-                  padding: 'var(--space-xs) var(--space-md)',
-                  backgroundColor: 'var(--color-accent)',
-                  color: 'white',
-                  borderRadius: 'var(--radius-md)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 'var(--font-sm)',
-                }}
+                style={miniBtn}
+                onClick={() => useWindowStore.getState().openWindow('data-sources', 'Data Sources', '📡')}
               >
-                + Add Exchange
+                Open Data Sources
               </button>
             </div>
-            {[
-              { name: 'Binance', status: 'connected', readOnly: false },
-              { name: 'OKX', status: 'not_configured', readOnly: false },
-              { name: 'Coinbase', status: 'not_configured', readOnly: false },
-            ].map((ex) => (
-              <div
-                key={ex.name}
-                style={{
-                  padding: 'var(--space-md)',
-                  backgroundColor: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 500 }}>{ex.name}</div>
-                  <div style={{ fontSize: 'var(--font-sm)', color: 'var(--color-text-muted)' }}>
-                    Spot & Margin trading
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: 'var(--font-sm)',
-                    color: ex.status === 'connected' ? 'var(--color-success)' : 'var(--color-text-muted)',
-                  }}
-                >
-                  {ex.status === 'connected' ? 'Connected' : 'Not configured'}
-                </span>
-              </div>
-            ))}
+            <div style={{ border: '1px inset', borderColor: '#808080 #fff #fff #808080', background: '#fff', padding: 8, fontSize: 11, lineHeight: 1.6 }}>
+              API keys are stored locally in the main process and never leave this machine.
+              Configure each source (Robinhood, Yahoo, Binance, Arc…) from the <b>Data Sources</b>{' '}
+              window on the desktop. Binance stock data requires a user API key; others work
+              with public endpoints today.
+            </div>
           </div>
         )
-
       case 'risk':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
@@ -427,5 +348,81 @@ const LlmSettings: React.FC = () => {
     </div>
   )
 }
+
+
+const miniBtn: React.CSSProperties = {
+  padding: '3px 10px',
+  fontSize: 11,
+  background: '#c0c0c0',
+  border: '2px outset',
+  borderColor: '#fff #808080 #808080 #fff',
+  cursor: 'pointer',
+}
+
+/** Real wallet list from the local vault (Settings -> Wallets tab). */
+const WalletsSettings: React.FC = () => {
+  const { unlocked, wallets, refresh } = useWalletStore()
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  const openManager = () => useWindowStore.getState().openWindow('wallets', 'Wallet Manager', '👛')
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontWeight: 500, fontSize: 13 }}>Local Vault Wallets</span>
+        <button style={miniBtn} onClick={openManager}>
+          Open Wallet Manager
+        </button>
+      </div>
+      {!unlocked ? (
+        <div style={infoBox}>
+          The vault is <b>locked</b>. Open the Wallet Manager on the desktop to unlock it and to
+          create or import wallets (mnemonic or private key).
+        </div>
+      ) : wallets.length === 0 ? (
+        <div style={infoBox}>No wallets yet. Open the Wallet Manager to create your first one.</div>
+      ) : (
+        wallets.map((w) => (
+          <div
+            key={w.id}
+            style={{
+              border: '1px inset',
+              borderColor: '#808080 #fff #fff #808080',
+              background: '#fff',
+              padding: '6px 8px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 500, fontSize: 12 }}>{w.name}</div>
+              <div style={{ fontSize: 10, color: '#666' }}>
+                {w.chain} · {w.address.slice(0, 6)}…{w.address.slice(-4)} ·{' '}
+                {w.kind === 'hd' ? 'HD' : 'Private Key'}
+                {w.accounts && w.accounts.length > 1 ? ` (${w.accounts.length} accounts)` : ''}
+              </div>
+            </div>
+            <span style={{ fontSize: 10, border: '1px inset', borderColor: '#808080 #fff #fff #808080', padding: '1px 6px' }}>
+              Local ✓
+            </span>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+const infoBox: React.CSSProperties = {
+  border: '1px inset',
+  borderColor: '#808080 #fff #fff #808080',
+  background: '#fff',
+  padding: 8,
+  fontSize: 11,
+  lineHeight: 1.6,
+}
+
 
 export default Settings
