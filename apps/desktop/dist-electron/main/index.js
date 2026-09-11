@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { ipcMain, webContents, app, BrowserWindow, shell } from "electron";
-import fs, { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes as randomBytes$2, pbkdf2Sync, createCipheriv, createDecipheriv, scryptSync, randomUUID } from "node:crypto";
@@ -9398,34 +9398,7 @@ const DIST_ELECTRON = path.join(__dirname$1, "..");
 const DIST = path.join(DIST_ELECTRON, "../dist");
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 let win = null;
-function uiConfigPath() {
-  return path.join(app.getPath("userData"), "vibe-ui.json");
-}
-function readUiConfig() {
-  try {
-    return JSON.parse(
-      fs.readFileSync(uiConfigPath(), "utf8")
-    );
-  } catch {
-    return {};
-  }
-}
-function saveUiConfig(cfg) {
-  try {
-    fs.writeFileSync(uiConfigPath(), JSON.stringify(cfg, null, 2));
-  } catch {
-  }
-}
-function applyTitleBarStyle(style) {
-  if (!win || process.platform !== "darwin") return;
-  try {
-    ;
-    win.setTitleBarStyle(style);
-  } catch {
-  }
-}
 function createWindow() {
-  const uiCfg = readUiConfig();
   win = new BrowserWindow({
     title: "Vibe - AI Trading Agent",
     width: 1400,
@@ -9433,7 +9406,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     frame: true,
-    titleBarStyle: uiCfg.titleBarStyle ?? "hiddenInset",
+    titleBarStyle: "default",
     webPreferences: {
       preload: path.join(DIST_ELECTRON, "preload/index.mjs"),
       nodeIntegration: false,
@@ -9441,14 +9414,6 @@ function createWindow() {
       sandbox: false
     }
   });
-  ipcMain.handle(
-    "window:setTitleBarStyle",
-    (_event, style) => {
-      applyTitleBarStyle(style);
-      saveUiConfig({ ...readUiConfig(), titleBarStyle: style });
-      return style;
-    }
-  );
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };

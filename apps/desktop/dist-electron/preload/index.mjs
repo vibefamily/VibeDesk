@@ -37,8 +37,6 @@ const vibeAPI = {
     probeOllama: () => ipcRenderer.invoke("agent:probeOllama"),
     testConnection: (config) => ipcRenderer.invoke("agent:testConnection", config)
   },
-  // Native window controls (macOS title bar style)
-  setTitleBarStyle: (style) => ipcRenderer.invoke("window:setTitleBarStyle", style),
   // Market data (sources run in the main process)
   market: {
     getState: () => ipcRenderer.invoke("market:getState"),

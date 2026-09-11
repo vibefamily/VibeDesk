@@ -15,7 +15,6 @@ import { createGlobalStyle } from 'styled-components'
 import { useEffect } from 'react'
 import Desktop from './components/95/Desktop'
 import { useWindowStore } from './components/95/windowStore'
-import { useUiStore } from './stores/uiStore'
 
 const GlobalStyles = createGlobalStyle`
   ${styleReset}
@@ -45,15 +44,6 @@ const App: React.FC = () => {
       useWindowStore.getState().openWindow('chat-center', 'Chat Center', '💬')
     }, 120)
     return () => clearTimeout(t)
-  }, [])
-
-  // Apply the saved native title bar preference right after boot (the
-  // window is created with it from vibe-ui.json; this covers changes).
-  useEffect(() => {
-    const on = useUiStore.getState().nativeTitleBar
-    if (on) {
-      void window.vibeAPI.setTitleBarStyle('default').catch(() => undefined)
-    }
   }, [])
 
   return (
