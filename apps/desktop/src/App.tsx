@@ -12,6 +12,7 @@ import AgentChat from './views/AgentChat'
 import Strategies from './views/Strategies'
 import Portfolio from './views/Portfolio'
 import StockTokens from './views/StockTokens'
+import Wallets from './views/Wallets'
 import Settings from './views/Settings'
 
 export type ViewId =
@@ -20,10 +21,12 @@ export type ViewId =
   | 'portfolio'
   | 'strategies'
   | 'stock-tokens'
+  | 'wallets'
   | 'settings'
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ViewId>('dashboard')
+  // Open on the core showcase screen (multi-source price comparison).
+  const [currentView, setCurrentView] = useState<ViewId>('stock-tokens')
 
   const renderView = () => {
     switch (currentView) {
@@ -37,6 +40,8 @@ const App: React.FC = () => {
         return <Strategies />
       case 'stock-tokens':
         return <StockTokens />
+      case 'wallets':
+        return <Wallets />
       case 'settings':
         return <Settings />
       default:

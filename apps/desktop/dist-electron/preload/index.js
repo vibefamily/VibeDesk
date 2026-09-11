@@ -1,11 +1,32 @@
-import { contextBridge as p, ipcRenderer as e } from "electron";
-const t = {
+import { contextBridge, ipcRenderer } from "electron";
+const vibeAPI = {
   // App info
-  getAppInfo: () => e.invoke("app:getInfo"),
-  ping: () => e.invoke("app:ping"),
+  getAppInfo: () => ipcRenderer.invoke("app:getInfo"),
+  ping: () => ipcRenderer.invoke("app:ping"),
+  // Wallet (secrets stay in the main process)
+  wallet: {
+    getState: () => ipcRenderer.invoke("wallet:getState"),
+    unlock: (password) => ipcRenderer.invoke("wallet:unlock", password),
+    lock: () => ipcRenderer.invoke("wallet:lock"),
+    createHd: (args) => ipcRenderer.invoke("wallet:createHd", args),
+    importHd: (args) => ipcRenderer.invoke("wallet:importHd", args),
+    deriveMore: (args) => ipcRenderer.invoke("wallet:deriveMore", args),
+    importPrivateKey: (args) => ipcRenderer.invoke("wallet:importPrivateKey", args),
+    importKeystore: (args) => ipcRenderer.invoke("wallet:importKeystore", args),
+    exportMnemonic: (args) => ipcRenderer.invoke("wallet:exportMnemonic", args),
+    exportPrivateKey: (args) => ipcRenderer.invoke("wallet:exportPrivateKey", args),
+    exportKeystore: (args) => ipcRenderer.invoke("wallet:exportKeystore", args),
+    authorizeAgent: (args) => ipcRenderer.invoke("wallet:authorizeAgent", args),
+    revokeAgent: (args) => ipcRenderer.invoke("wallet:revokeAgent", args),
+    revokeAll: () => ipcRenderer.invoke("wallet:revokeAll"),
+    remove: (args) => ipcRenderer.invoke("wallet:remove", args)
+  },
   // Event listeners
-  on: (n, o) => {
-    ["market:tick", "order:update", "agent:proposal"].includes(n) && e.on(n, (r, ...i) => o(...i));
+  on: (channel, callback) => {
+    const validChannels = ["market:tick", "order:update", "agent:proposal"];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+    }
   }
 };
-p.exposeInMainWorld("vibeAPI", t);
+contextBridge.exposeInMainWorld("vibeAPI", vibeAPI);

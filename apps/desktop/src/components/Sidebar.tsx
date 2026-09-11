@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'strategies', label: 'Strategies', icon: '📈', group: 'Trading' },
   { id: 'agent', label: 'AI Agent', icon: '🤖', group: 'AI' },
   { id: 'stock-tokens', label: 'Stock Tokens', icon: '🔗', group: 'AI' },
+  { id: 'wallets', label: 'Wallets', icon: '👛', group: 'System' },
   { id: 'settings', label: 'Settings', icon: '⚙️', group: 'System' },
 ]
 
