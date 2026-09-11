@@ -40,6 +40,7 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
   const [sending, setSending] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   // Hard re-entrancy lock: React state updates are async, so `sending`
   // alone cannot stop a second Enter / button click from entering send()
   // in the same tick (which is how duplicate messages were produced).
@@ -99,6 +100,10 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
     sendingRef.current = true
     setSending(true)
     setInput('')
+    // Also clear the DOM value directly: with an IME (e.g. Chinese input),
+    // the compositionend that follows Enter re-writes the composed text
+    // into the field and can resurrect the cleared state.
+    if (inputRef.current) inputRef.current.value = ''
     try {
       await chat(agent.id, text)
     } catch {
@@ -254,10 +259,20 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
         }}
       >
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // Skip while the IME is composing: for Chinese input the Enter
+            // key confirms a candidate word, and sending at that moment
+            // would both fire a half-typed message and let compositionend
+            // restore the text into the field. User presses Enter again to
+            // actually send.
+            if (
+              e.key === 'Enter' &&
+              !e.shiftKey &&
+              !(e.nativeEvent as KeyboardEvent).isComposing
+            ) {
               e.preventDefault()
               void send()
             }
