@@ -45,15 +45,22 @@ const ChatCenter: React.FC = () => {
   // a refresh failure reset the guard and re-created "General Chat" in a
   // tight loop, filling the agent store with hundreds of duplicates.
   const bootstrappedRef = useRef(false)
+  // Only bootstrap after the first refresh settles; otherwise the effect
+  // that refreshes and the one that bootstraps run in the same commit and
+  // the latter sees the stale initial state (loading=false, agents=[]),
+  // creating a duplicate General Chat next to a restored one.
+  const initializedRef = useRef(false)
 
   // Keep the list in sync and bootstrap a General Chat session so the
   // user always has a default conversation to open.
   useEffect(() => {
-    void refresh()
+    void refresh().finally(() => {
+      initializedRef.current = true
+    })
   }, [refresh])
 
   useEffect(() => {
-    if (loading || bootstrappedRef.current) return
+    if (!initializedRef.current || bootstrappedRef.current) return
     bootstrappedRef.current = true
     if (agents.length === 0 && !newing) {
       void (async () => {
