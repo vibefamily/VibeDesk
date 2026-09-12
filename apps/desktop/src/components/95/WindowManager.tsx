@@ -19,8 +19,10 @@ import InfoCenter from '../../views/InfoCenter'
 import Dashboard from '../../views/Dashboard'
 import Strategies from '../../views/Strategies'
 import Portfolio from '../../views/Portfolio'
+import DataCenter from '../../views/DataCenter'
 
 const WINDOW_COMPONENTS: Record<string, React.FC> = {
+  'data-center': DataCenter,
   'stock-tokens': StockTokens,
   agents: Agents,
   'chat-center': ChatCenter,

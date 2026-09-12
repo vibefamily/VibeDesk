@@ -13,14 +13,13 @@ import { useWindowStore } from './windowStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useAgentStore } from '../../stores/agentStore'
 
-/** Desktop icons: the four core product modules. */
+/** Desktop icons: three product pillars - Data + AI + Wallet = Auto
+ *  Trading. Settings is intentionally not on the desktop; it lives in
+ *  the Start menu. */
 const DESKTOP_ICONS = [
-  { key: 'chat-center', label: 'Chat Center', icon: '💬', hint: 'Talk to your AI agent - default home' },
-  { key: 'stock-tokens', label: 'Trade Center', icon: '📈', hint: 'Multi-source real-time prices & spread' },
-  { key: 'agents', label: 'AI Agents', icon: '🤖', hint: 'Agent analysis & skills' },
+  { key: 'data-center', label: 'Data Center', icon: '📊', hint: 'Markets, news & data sources in one window' },
+  { key: 'agents', label: 'AI Agent', icon: '🤖', hint: 'Agent analysis & skills' },
   { key: 'wallets', label: 'Wallet Manager', icon: '👛', hint: 'Local encrypted multi-wallet vault' },
-  { key: 'data', label: 'Data Sources', icon: '📡', hint: 'Data source management' },
-  { key: 'info', label: 'Info Center', icon: '📰', hint: 'News & tweet feeds for agents' },
 ]
 
 const Desktop: React.FC = () => {
@@ -65,9 +64,9 @@ const Desktop: React.FC = () => {
           style={{
             padding: 14,
             display: 'flex',
-            flexWrap: 'wrap',
-            gap: 6,
-            alignContent: 'flex-start',
+            flexDirection: 'column',
+            gap: 4,
+            alignItems: 'flex-start',
           }}
         >
           {DESKTOP_ICONS.map((item) => (
@@ -79,12 +78,6 @@ const Desktop: React.FC = () => {
               onClick={() => openWindow(item.key, item.label, item.icon)}
             />
           ))}
-          <DesktopIcon
-            icon="⚙️"
-            label="Settings"
-            hint="Application settings & LLM configuration"
-            onClick={() => openWindow('settings', 'Settings', '⚙️')}
-          />
           {agents
             .filter((a) => a.desktopIcon)
             .map((agent) => (

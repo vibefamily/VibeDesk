@@ -21,10 +21,14 @@ export const START_MENU: {
   icon: string
   title: string
 }[] = [
-  { key: 'stock-tokens', label: 'Trade Center', icon: '📈', title: 'Trade Center - Multi-Source Prices' },
+  { key: 'data-center', label: 'Data Center', icon: '📊', title: 'Data Center - Markets, News & Sources' },
+  { key: 'chat-center', label: 'Chat Center', icon: '💬', title: 'Chat Center - Talk to your AI agent' },
   { key: 'agents', label: 'AI Agents', icon: '🤖', title: 'AI Agents - Analysis & Skills' },
   { key: 'wallets', label: 'Wallet Manager', icon: '👛', title: 'Wallet Manager' },
+  { key: 'stock-tokens', label: 'Trade Center', icon: '📈', title: 'Trade Center - Multi-Source Prices' },
+  { key: 'info', label: 'Info Center', icon: '📰', title: 'Info Center - News & Tweet Feeds' },
   { key: 'data', label: 'Data Sources', icon: '📡', title: 'Data Sources' },
+  { key: 'settings', label: 'Settings', icon: '⚙️', title: 'Settings - App & LLM Configuration' },
 ]
 
 const Taskbar: React.FC<TaskbarProps> = ({ startMenuOpen, setStartMenuOpen }) => {
