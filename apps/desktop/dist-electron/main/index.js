@@ -7597,7 +7597,8 @@ class AgentManager {
             lastMessage: typeof view.lastMessage === "string" ? view.lastMessage : null,
             messages: Array.isArray(view.messages) ? view.messages.slice(-MAX_MESSAGES) : [],
             dataSources: Array.isArray(view.dataSources) ? view.dataSources : [],
-            walletAuths: Array.isArray(view.walletAuths) ? view.walletAuths : []
+            walletAuths: Array.isArray(view.walletAuths) ? view.walletAuths : [],
+            desktopIcon: view.desktopIcon === true
           },
           agent: null,
           timer: null,
@@ -7638,7 +7639,8 @@ class AgentManager {
       lastMessage: null,
       messages: [],
       dataSources: options.dataSources ?? [],
-      walletAuths: options.walletAuths ?? []
+      walletAuths: options.walletAuths ?? [],
+      desktopIcon: options.desktopIcon ?? false
     };
     const managed = {
       template,
@@ -9246,7 +9248,8 @@ async function setupAgentIpc(options) {
     (_e, args) => {
       return agentManager.create(args.templateId, {
         name: args.name,
-        symbols: args.symbols
+        symbols: args.symbols,
+        desktopIcon: args.desktopIcon
       });
     }
   );

@@ -100,6 +100,7 @@ interface AgentInstanceApiType {
   }[]
   dataSources: string[]
   walletAuths: string[]
+  desktopIcon: boolean
 }
 
 interface SkillsApiType {
@@ -132,7 +133,12 @@ interface AgentApiType {
   listTemplates: () => Promise<AgentTemplateApiType[]>
   list: () => Promise<AgentInstanceApiType[]>
   getMode: () => Promise<'llm' | 'rule'>
-  create: (args: { templateId: string; name?: string; symbols?: string[] }) => Promise<AgentInstanceApiType>
+  create: (args: {
+    templateId: string
+    name?: string
+    symbols?: string[]
+    desktopIcon?: boolean
+  }) => Promise<AgentInstanceApiType>
   start: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   stop: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   remove: (args: { id: string }) => Promise<AgentInstanceApiType[]>

@@ -68,6 +68,8 @@ export interface AgentInstanceView {
   dataSources: string[]
   /** Authorized wallet keys this agent may read (walletId:index, empty = none). */
   walletAuths: string[]
+  /** Whether a desktop shortcut should be shown on the VibeDesk home desktop. */
+  desktopIcon: boolean
 }
 
 /** Events emitted by the AgentManager. */
@@ -235,6 +237,7 @@ export class AgentManager {
               : [],
             dataSources: Array.isArray(view.dataSources) ? view.dataSources : [],
             walletAuths: Array.isArray(view.walletAuths) ? view.walletAuths : [],
+            desktopIcon: view.desktopIcon === true,
           },
           agent: null,
           timer: null,
@@ -261,6 +264,7 @@ export class AgentManager {
       symbols?: string[]
       dataSources?: string[]
       walletAuths?: string[]
+      desktopIcon?: boolean
     } = {},
   ): AgentInstanceView {
     const template = this.templates.get(templateId)
@@ -288,6 +292,7 @@ export class AgentManager {
       messages: [],
       dataSources: options.dataSources ?? [],
       walletAuths: options.walletAuths ?? [],
+      desktopIcon: options.desktopIcon ?? false,
     }
 
     const managed: ManagedAgent = {

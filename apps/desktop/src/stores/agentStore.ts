@@ -40,6 +40,7 @@ export interface AgentInstanceView {
   messages: AgentMessageView[]
   dataSources: string[]
   walletAuths: string[]
+  desktopIcon: boolean
 }
 
 export interface LlmConfig {
@@ -55,7 +56,12 @@ interface AgentState {
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
-  create: (args: { templateId: string; name?: string; symbols?: string[] }) => Promise<void>
+  create: (args: {
+    templateId: string
+    name?: string
+    symbols?: string[]
+    desktopIcon?: boolean
+  }) => Promise<void>
   start: (id: string) => Promise<void>
   stop: (id: string) => Promise<void>
   remove: (id: string) => Promise<void>

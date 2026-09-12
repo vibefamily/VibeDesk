@@ -441,6 +441,7 @@ const Agents: React.FC = () => {
   const [templateId, setTemplateId] = useState('')
   const [name, setName] = useState('')
   const [symbols, setSymbols] = useState('')
+  const [desktopIcon, setDesktopIcon] = useState(true)
 
   useEffect(() => {
     void refresh()
@@ -468,10 +469,11 @@ const Agents: React.FC = () => {
         .split(/[\s,]+/)
         .map((s) => s.trim())
         .filter(Boolean),
+      desktopIcon,
     })
     setName('')
     setSymbols('')
-  }, [templateId, name, symbols, create])
+  }, [templateId, name, symbols, desktopIcon, create])
 
   return (
     <div style={{ padding: 10, maxWidth: 900, background: '#c0c0c0', color: '#000' }}>
@@ -552,6 +554,17 @@ const Agents: React.FC = () => {
               onChange={(e) => setSymbols(e.target.value)}
               placeholder="TSLA, NVDA"
             />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ ...label, display: 'flex', alignItems: 'center', gap: 4, margin: 0, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={desktopIcon}
+                onChange={(e) => setDesktopIcon(e.target.checked)}
+                style={{ margin: 0 }}
+              />
+              <span style={{ fontSize: 11, color: '#000' }}>Desktop shortcut</span>
+            </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <button style={btnPrimary} onClick={() => void onSubmit()} disabled={!templateId || loading}>

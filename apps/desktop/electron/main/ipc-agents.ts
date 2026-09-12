@@ -155,10 +155,11 @@ export async function setupAgentIpc(
 
   ipcMain.handle(
     'agent:create',
-    (_e, args: { templateId: string; name?: string; symbols?: string[] }) => {
+    (_e, args: { templateId: string; name?: string; symbols?: string[]; desktopIcon?: boolean }) => {
       return agentManager!.create(args.templateId, {
         name: args.name,
         symbols: args.symbols,
+        desktopIcon: args.desktopIcon,
       })
     },
   )

@@ -5,12 +5,13 @@
  * Trade) plus Settings; open windows render above, taskbar pinned below.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import DesktopIcon from './DesktopIcon'
 import WindowManager from './WindowManager'
 import Taskbar, { START_MENU } from './Taskbar'
 import { useWindowStore } from './windowStore'
 import { useUiStore } from '../../stores/uiStore'
+import { useAgentStore } from '../../stores/agentStore'
 
 /** Desktop icons: the four core product modules. */
 const DESKTOP_ICONS = [
@@ -25,7 +26,15 @@ const DESKTOP_ICONS = [
 const Desktop: React.FC = () => {
   const [startMenuOpen, setStartMenuOpen] = useState(false)
   const openWindow = useWindowStore((s) => s.openWindow)
+  const openChatWindow = useWindowStore((s) => s.openChatWindow)
   const zoom = useUiStore((s) => s.zoom)
+  const agents = useAgentStore((s) => s.agents)
+  const refreshAgents = useAgentStore((s) => s.refresh)
+
+  // Load persisted agents so desktop shortcuts (desktopIcon) appear on boot.
+  useEffect(() => {
+    void refreshAgents()
+  }, [refreshAgents])
 
   return (
     <div
@@ -76,6 +85,17 @@ const Desktop: React.FC = () => {
             hint="Application settings & LLM configuration"
             onClick={() => openWindow('settings', 'Settings', '⚙️')}
           />
+          {agents
+            .filter((a) => a.desktopIcon)
+            .map((agent) => (
+              <DesktopIcon
+                key={`agent:${agent.id}`}
+                icon={agent.icon}
+                label={agent.name}
+                hint={`Agent: ${agent.name} (${agent.status}) - double-click to chat`}
+                onClick={() => openChatWindow(agent.id, agent.name, agent.icon)}
+              />
+            ))}
         </div>
 
         {/* Open windows */}
