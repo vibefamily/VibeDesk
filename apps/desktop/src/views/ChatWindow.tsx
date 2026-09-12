@@ -13,6 +13,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
 import { useWindowStore } from '../components/95/windowStore'
+import AgentConfigPanel from '../components/AgentConfigPanel'
 
 const BTN: React.CSSProperties = {
   padding: '3px 10px',
@@ -36,6 +37,7 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
   const consumeChatIntent = useWindowStore((s) => s.consumeChatIntent)
   const openWindow = useWindowStore((s) => s.openWindow)
 
+  const [tab, setTab] = useState<'chat' | 'settings'>('chat')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
@@ -55,10 +57,11 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
 
   // Focus the composer once the window has settled so the user can start
   // typing immediately; a visible focus outline makes the state obvious.
+  // Re-focus when returning from the Settings tab.
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 80)
     return () => clearTimeout(t)
-  }, [])
+  }, [tab])
 
   // Keep this session live: apply main-process events so new messages
   // (including replies from this window's own chat calls) show up.
@@ -159,6 +162,15 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
         )}
         <span style={{ fontSize: 10, color: '#333' }}>· {agent.status}</span>
         <div style={{ flex: 1 }} />
+        <button style={{ ...BTN, fontWeight: tab === 'chat' ? 700 : 400 }} onClick={() => setTab('chat')}>
+          Chat
+        </button>
+        <button
+          style={{ ...BTN, fontWeight: tab === 'settings' ? 700 : 400 }}
+          onClick={() => setTab('settings')}
+        >
+          Settings
+        </button>
         <button
           style={BTN}
           onClick={() => openWindow('chat-center', 'Chat Center', '💬', { width: 340, height: 440 })}
@@ -167,6 +179,27 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
         </button>
       </div>
 
+      {tab === 'settings' && agent ? (
+        <div
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            padding: 8,
+            background: '#c0c0c0',
+            borderLeft: '2px inset',
+            borderRight: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
+          }}
+        >
+          <AgentConfigPanel
+            agentId={agent.id}
+            initialDataSources={agent.dataSources}
+            initialWalletAuths={agent.walletAuths}
+            onSaved={() => void refresh()}
+          />
+        </div>
+      ) : (
+      <>
       {/* Messages */}
       <div
         style={{
@@ -303,6 +336,8 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
           {sending ? '…' : 'Send'}
         </button>
       </div>
+      </>
+      )}
     </div>
   )
 }

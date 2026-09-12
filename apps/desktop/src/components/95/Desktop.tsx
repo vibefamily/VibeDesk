@@ -13,12 +13,14 @@ import { useWindowStore } from './windowStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useAgentStore } from '../../stores/agentStore'
 
-/** Desktop icons: three product pillars - Data + AI + Wallet = Auto
- *  Trading. Settings is intentionally not on the desktop; it lives in
- *  the Start menu. */
+/** Desktop icons: three product pillars - Data + Agent + Wallet =
+ *  Auto Trading. The Agent icon opens the default chat agent directly
+ *  (chat + its own Settings tab); extra agents created in Agent Manager
+ *  appear as their own desktop shortcuts below. Settings is not on the
+ *  desktop; it lives in the Start menu. */
 const DESKTOP_ICONS = [
   { key: 'data-center', label: 'Data Center', icon: '📊', hint: 'Markets, news & data sources in one window' },
-  { key: 'agents', label: 'AI Agent', icon: '🤖', hint: 'Agent analysis & skills' },
+  { key: 'agent', label: 'Agent', icon: '💬', hint: 'Chat with your default AI agent' },
   { key: 'wallets', label: 'Wallet Manager', icon: '👛', hint: 'Local encrypted multi-wallet vault' },
 ]
 
@@ -69,15 +71,34 @@ const Desktop: React.FC = () => {
             alignItems: 'flex-start',
           }}
         >
-          {DESKTOP_ICONS.map((item) => (
-            <DesktopIcon
-              key={item.key}
-              icon={item.icon}
-              label={item.label}
-              hint={item.hint}
-              onClick={() => openWindow(item.key, item.label, item.icon)}
-            />
-          ))}
+          {DESKTOP_ICONS.map((item) => {
+            if (item.key === 'agent') {
+              // Default agent chat entry: the first agent (bootstrap
+              // General Chat). Falls back to Chat Center while loading.
+              const def = agents[0] ?? null
+              return (
+                <DesktopIcon
+                  key={item.key}
+                  icon={item.icon}
+                  label={item.label}
+                  hint={item.hint}
+                  onClick={() => {
+                    if (def) openChatWindow(def.id, def.name, def.icon)
+                    else openWindow('chat-center', 'Chat Center', '💬')
+                  }}
+                />
+              )
+            }
+            return (
+              <DesktopIcon
+                key={item.key}
+                icon={item.icon}
+                label={item.label}
+                hint={item.hint}
+                onClick={() => openWindow(item.key, item.label, item.icon)}
+              />
+            )
+          })}
           {agents
             .filter((a) => a.desktopIcon)
             .map((agent) => (

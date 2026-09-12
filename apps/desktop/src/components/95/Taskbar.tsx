@@ -8,31 +8,46 @@
 import React, { useEffect, useState } from 'react'
 import { Button, MenuList, MenuListItem, Separator } from 'react95'
 import { useWindowStore } from './windowStore'
+import { useAgentStore } from '../../stores/agentStore'
 
 interface TaskbarProps {
   startMenuOpen: boolean
   setStartMenuOpen: (open: boolean) => void
 }
 
-/** Start menu entries: the four core product modules. */
+/** Start menu entries grouped by pillar: Data / Agent / Wallet. */
 export const START_MENU: {
-  key: string
-  label: string
-  icon: string
-  title: string
+  group: string
+  items: { key: string; label: string; icon: string; title: string }[]
 }[] = [
-  { key: 'data-center', label: 'Data Center', icon: '📊', title: 'Data Center - Markets, News & Sources' },
-  { key: 'chat-center', label: 'Chat Center', icon: '💬', title: 'Chat Center - Talk to your AI agent' },
-  { key: 'agents', label: 'AI Agents', icon: '🤖', title: 'AI Agents - Analysis & Skills' },
-  { key: 'wallets', label: 'Wallet Manager', icon: '👛', title: 'Wallet Manager' },
-  { key: 'stock-tokens', label: 'Trade Center', icon: '📈', title: 'Trade Center - Multi-Source Prices' },
-  { key: 'info', label: 'Info Center', icon: '📰', title: 'Info Center - News & Tweet Feeds' },
-  { key: 'data', label: 'Data Sources', icon: '📡', title: 'Data Sources' },
-  { key: 'settings', label: 'Settings', icon: '⚙️', title: 'Settings - App & LLM Configuration' },
+  {
+    group: 'Data',
+    items: [
+      { key: 'data-center', label: 'Data Center', icon: '📊', title: 'Data Center - Markets, News & Sources' },
+      { key: 'stock-tokens', label: 'Trade Center', icon: '📈', title: 'Trade Center - Multi-Source Prices' },
+      { key: 'info', label: 'Info Center', icon: '📰', title: 'Info Center - News & Tweet Feeds' },
+      { key: 'data', label: 'Data Sources', icon: '📡', title: 'Data Sources' },
+    ],
+  },
+  {
+    group: 'Agent',
+    items: [
+      { key: 'agent-chat', label: 'Agent', icon: '💬', title: 'Agent - Chat with your default agent' },
+      { key: 'agents', label: 'Agent Manager', icon: '🤖', title: 'Agent Manager - Create & manage agents' },
+      { key: 'chat-center', label: 'Chat Center', icon: '🧩', title: 'Chat Center - Session templates' },
+    ],
+  },
+  {
+    group: 'Wallet',
+    items: [
+      { key: 'wallets', label: 'Wallet Manager', icon: '👛', title: 'Wallet Manager' },
+    ],
+  },
 ]
 
 const Taskbar: React.FC<TaskbarProps> = ({ startMenuOpen, setStartMenuOpen }) => {
-  const { windows, openWindow, minimizeWindow, restoreWindow } = useWindowStore()
+  const { windows, openWindow, minimizeWindow, restoreWindow, openChatWindow } = useWindowStore()
+  const agents = useAgentStore((s) => s.agents)
   const [now, setNow] = useState(new Date())
 
   useEffect(() => {
@@ -41,7 +56,15 @@ const Taskbar: React.FC<TaskbarProps> = ({ startMenuOpen, setStartMenuOpen }) =>
   }, [])
 
   const openStart = (key: string, label: string, icon: string, title: string) => {
-    openWindow(key, title ?? label, icon)
+    if (key === 'agent-chat') {
+      // Open the default agent's chat window (or Chat Center while the
+      // agent list is still loading).
+      const def = agents[0] ?? null
+      if (def) openChatWindow(def.id, def.name, def.icon)
+      else openWindow('chat-center', 'Chat Center', '💬')
+    } else {
+      openWindow(key, title ?? label, icon)
+    }
     setStartMenuOpen(false)
   }
 
@@ -81,37 +104,31 @@ const Taskbar: React.FC<TaskbarProps> = ({ startMenuOpen, setStartMenuOpen }) =>
               width: 210,
             }}
           >
-            {START_MENU.map((item) => (
-              <MenuListItem
-                key={item.key}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openStart(item.key, item.label, item.icon, item.title)
-                }}
-              >
-                <span style={{ marginRight: 8 }}>{item.icon}</span>
-                {item.label}
-              </MenuListItem>
+            {START_MENU.map((group) => (
+              <div key={group.group}>
+                {group.items.map((item) => (
+                  <MenuListItem
+                    key={item.key}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openStart(item.key, item.label, item.icon, item.title)
+                    }}
+                  >
+                    <span style={{ marginRight: 8 }}>{item.icon}</span>
+                    {item.label}
+                  </MenuListItem>
+                ))}
+                <Separator />
+              </div>
             ))}
-            <Separator />
             <MenuListItem
               onClick={(e) => {
                 e.stopPropagation()
-                openStart('settings', 'Settings', '⚙️', 'Settings')
+                openStart('settings', 'Settings', '⚙️', 'Settings - App & LLM Configuration')
               }}
             >
               <span style={{ marginRight: 8 }}>⚙️</span>
               Settings
-            </MenuListItem>
-            <Separator />
-            <MenuListItem
-              onClick={(e) => {
-                e.stopPropagation()
-                setStartMenuOpen(false)
-              }}
-            >
-              <span style={{ marginRight: 8 }}>🚪</span>
-              Shut Down…
             </MenuListItem>
           </MenuList>
         )}
