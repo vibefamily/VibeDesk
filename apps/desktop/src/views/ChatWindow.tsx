@@ -53,6 +53,13 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
     void refresh()
   }, [refresh])
 
+  // Focus the composer once the window has settled so the user can start
+  // typing immediately; a visible focus outline makes the state obvious.
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 80)
+    return () => clearTimeout(t)
+  }, [])
+
   // Keep this session live: apply main-process events so new messages
   // (including replies from this window's own chat calls) show up.
   useEffect(() => {

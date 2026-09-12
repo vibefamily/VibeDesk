@@ -34,6 +34,15 @@ const GlobalStyles = createGlobalStyle`
   body {
     font-family: 'MS Sans Serif', 'Segoe UI', Arial, sans-serif;
   }
+
+  /* Visible focus indicator for 95-style form fields (styleReset clears
+     the default outline, leaving focused inputs looking dead). */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: 1px dotted #000;
+    outline-offset: -1px;
+  }
 `
 
 const App: React.FC = () => {

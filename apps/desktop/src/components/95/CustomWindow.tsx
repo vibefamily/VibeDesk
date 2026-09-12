@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import Draggable from 'react-draggable'
 import type { ReactNode } from 'react'
 import { useWindowStore } from './windowStore'
+import { useUiStore } from '../../stores/uiStore'
 
 interface CustomWindowProps {
   windowId: string
@@ -40,6 +41,9 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
   const nodeRef = useRef<HTMLDivElement>(null)
   const { removeWindow, minimizeWindow, toggleMaximize, focusWindow, updateWindowPosition, updateWindowSize } =
     useWindowStore()
+  // The desktop applies a CSS `zoom` for the Interface Size setting; all
+  // pointer deltas must be divided by it or dragging/resizing feel dead.
+  const zoom = useUiStore((s) => s.zoom)
 
   // Resize drag state (bottom-right corner handle).
   const [resize, setResize] = useState<{
@@ -55,8 +59,8 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
   useEffect(() => {
     if (!resize) return
     const onMove = (e: MouseEvent) => {
-      const w = Math.max(MIN_W, resize.startW + (e.clientX - resize.startX))
-      const h = Math.max(MIN_H, resize.startH + (e.clientY - resize.startY))
+      const w = Math.max(MIN_W, resize.startW + (e.clientX - resize.startX) / zoom)
+      const h = Math.max(MIN_H, resize.startH + (e.clientY - resize.startY) / zoom)
       updateWindowSize(windowId, w, h)
     }
     const onUp = () => setResize(null)
@@ -66,7 +70,7 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [resize, windowId, updateWindowSize])
+  }, [resize, windowId, updateWindowSize, zoom])
 
   const frame: React.CSSProperties = {
     background: '#c0c0c0',
@@ -199,6 +203,7 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
       nodeRef={nodeRef}
       handle=".win95-title-bar"
       position={{ x, y }}
+      scale={zoom}
       onStop={(_e, data) => updateWindowPosition(windowId, data.x, data.y)}
       bounds="parent"
     >
