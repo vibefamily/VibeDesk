@@ -43,6 +43,7 @@ const ArcSwapPanel: React.FC<Props> = ({ open, direction, symbol, onClose }) => 
   const [amount, setAmount] = useState('')
   const [busy, setBusy] = useState(false)
   const [quote, setQuote] = useState<string | null>(null)
+  const [tokenDecimals, setTokenDecimals] = useState(18)
   const [result, setResult] = useState<{ hash: string; status: 'pending' | 'success' | 'reverted' } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -69,16 +70,16 @@ const ArcSwapPanel: React.FC<Props> = ({ open, direction, symbol, onClose }) => 
 
   const isBuy = direction === 'buy'
 
-  const amountBase = () => {
+  const amountBase = (decimals: number) => {
     const n = Number(amount)
     if (!Number.isFinite(n) || n <= 0) return null
-    return isBuy ? BigInt(Math.round(n * 1e18)) : BigInt(Math.round(n * 1e6))
+    const scale = 10 ** (isBuy ? 18 : decimals)
+    return BigInt(Math.round(n * scale))
   }
 
   const doQuote = async () => {
-    const amt = amountBase()
     const tok = token.trim()
-    if (!amt || !tok) {
+    if (!Number(amount) || Number(amount) <= 0 || !tok) {
       setError('Enter a token address and an amount first.')
       return
     }
@@ -86,6 +87,16 @@ const ArcSwapPanel: React.FC<Props> = ({ open, direction, symbol, onClose }) => 
     setError(null)
     setResult(null)
     try {
+      // Probe decimals first so input is scaled correctly for the quote.
+      const probe = await window.vibeAPI.arc.quote({
+        token: tok,
+        zeroForOne: isBuy,
+        amountIn: (10n ** 18n).toString(), // any amount; we only use decimals
+        hooks: hooks.trim() || undefined,
+      })
+      setTokenDecimals(probe.decimals)
+      const amt = amountBase(probe.decimals)
+      if (!amt) throw new Error('Invalid amount')
       const res = await window.vibeAPI.arc.quote({
         token: tok,
         zeroForOne: isBuy,
@@ -93,7 +104,12 @@ const ArcSwapPanel: React.FC<Props> = ({ open, direction, symbol, onClose }) => 
         hooks: hooks.trim() || undefined,
       })
       const out = BigInt(res.amountOut)
-      setQuote(isBuy ? `${(Number(out) / 1e6).toPrecision(6)} tokens` : `${(Number(out) / 1e18).toPrecision(6)} USDC`)
+      const dec = res.decimals
+      setQuote(
+        isBuy
+          ? `${(Number(out) / 10 ** dec).toPrecision(6)} tokens`
+          : `${(Number(out) / 10 ** dec).toPrecision(6)} USDC`,
+      )
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -102,16 +118,17 @@ const ArcSwapPanel: React.FC<Props> = ({ open, direction, symbol, onClose }) => 
   }
 
   const doSwap = async () => {
-    const amt = amountBase()
     const tok = token.trim()
-    if (!amt || !tok || !accountKey) {
+    if (!Number(amount) || Number(amount) <= 0 || !tok || !accountKey) {
       setError('Pick an authorized wallet, a token address and an amount.')
       return
     }
-    // Ask the live pool for a minimum-out (2.5% slippage) first.
     setBusy(true)
     setError(null)
     try {
+      // Live quote doubles as the decimals probe and the slippage base.
+      const amt = amountBase(tokenDecimals)
+      if (!amt) throw new Error('Invalid amount')
       const q = await window.vibeAPI.arc.quote({
         token: tok,
         zeroForOne: isBuy,
@@ -245,7 +262,7 @@ const ArcSwapPanel: React.FC<Props> = ({ open, direction, symbol, onClose }) => 
             <span style={{ width: 60 }}>Hooks</span>
             <input
               style={field()}
-              placeholder="Pool hook (blank = zero address)"
+              placeholder="Pool hook (blank = Minara fee hook)"
               value={hooks}
               onChange={(e) => setHooks(e.target.value)}
             />

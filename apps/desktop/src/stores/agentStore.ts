@@ -97,13 +97,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   refresh: async () => {
     set({ loading: true })
     try {
+      // Degrade per source: a single failing IPC (e.g. listDataSources)
+      // must not blank the whole agent list - that previously made the
+      // auto-bootstrap loop re-create agents forever.
       const [templates, agents, mode, dataSources] = await Promise.all([
-        api.listTemplates(),
-        api.list(),
-        api.getMode(),
-        api.listDataSources(),
+        api.listTemplates().catch(() => []),
+        api.list().catch(() => []),
+        api.getMode().catch(() => 'rule' as const),
+        api.listDataSources().catch(() => []),
       ])
-      set({ templates, agents, mode, dataSources })
+      set({ templates, agents, mode, dataSources, error: null })
     } catch (e) {
       set({ error: (e as Error).message })
     } finally {

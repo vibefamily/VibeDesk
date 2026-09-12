@@ -43,6 +43,9 @@ export const ARC_CONTRACTS = {
 /** Native USDC placeholder used as currency0 in Minara pools. */
 export const NATIVE_USDC = '0x0000000000000000000000000000000000000000' as `0x${string}`
 
+/** Minara fee hook (single instance) - every launched pool uses it. */
+export const MINARA_FEE_HOOK = '0xA6CcB619818b822E683B16bd5eb041970e6ce0CC' as `0x${string}`
+
 // --- Clients ----------------------------------------------------------------
 
 // viem 2.56's generic inference is unreliable for contract calls in this
@@ -108,6 +111,16 @@ const routerAbi = [
       { type: 'uint256', name: 'deadline' },
     ],
     outputs: [],
+  },
+] as const
+
+const erc20DecimalsAbi = [
+  {
+    type: 'function',
+    name: 'decimals',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint8' }],
   },
 ] as const
 
@@ -189,7 +202,7 @@ export interface ArcPoolKey {
  * (zero address for pre-hook pools; pass the token's actual hook when
  * known). TokenLaunched.key is authoritative on-chain.
  */
-export function poolKeyFor(token: string, hooks: `0x${string}` = NATIVE_USDC): ArcPoolKey {
+export function poolKeyFor(token: string, hooks: `0x${string}` = MINARA_FEE_HOOK): ArcPoolKey {
   return {
     currency0: NATIVE_USDC,
     currency1: token as `0x${string}`,
@@ -199,7 +212,7 @@ export function poolKeyFor(token: string, hooks: `0x${string}` = NATIVE_USDC): A
   }
 }
 
-export function poolIdFor(token: string, hooks: `0x${string}` = NATIVE_USDC): `0x${string}` {
+export function poolIdFor(token: string, hooks: `0x${string}` = MINARA_FEE_HOOK): `0x${string}` {
   return keccak256(
     encodeAbiParameters(
       parseAbiParameters('(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks)'),
@@ -219,8 +232,10 @@ export interface ArcQuoteParams {
   hooks?: `0x${string}`
 }
 
-/** Quote a v4 single-hop swap through the V4 Quoter (fees included). */
-export async function arcQuote(params: ArcQuoteParams): Promise<{ amountOut: bigint }> {
+/** Quote a v4 single-hop swap through the V4 Quoter (fees included).
+ *  Returns the output token decimals so the renderer can format units
+ *  (tokens may use 6 or 18 decimals; native USDC is 18). */
+export async function arcQuote(params: ArcQuoteParams): Promise<{ amountOut: bigint; decimals: number }> {
   const poolKey = poolKeyFor(params.token, params.hooks)
   const result = await publicClient.simulateContract({
     address: ARC_CONTRACTS.v4Quoter,
@@ -235,7 +250,24 @@ export async function arcQuote(params: ArcQuoteParams): Promise<{ amountOut: big
       },
     ],
   })
-  return { amountOut: result.result[0] as bigint }
+  // Output currency: token when buying, native USDC when selling.
+  const decimals = params.zeroForOne ? await tokenDecimals(params.token) : 18
+  return { amountOut: result.result[0] as bigint, decimals }
+}
+
+async function tokenDecimals(token: string): Promise<number> {
+  if (!token || token === NATIVE_USDC) return 18
+  try {
+    const dec = (await publicClient.readContract({
+      address: token as `0x${string}`,
+      abi: erc20DecimalsAbi,
+      functionName: 'decimals',
+      args: [],
+    })) as bigint
+    return Number(dec)
+  } catch {
+    return 18
+  }
 }
 
 // --- Router calldata --------------------------------------------------------

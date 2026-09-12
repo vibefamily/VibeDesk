@@ -86,7 +86,10 @@ export const useWindowStore = create<WindowStore>((set) => ({
             // Baseline above the desktop drag strip (zIndex 50): windows
             // must always sit on top of it, otherwise a maximized window's
             // title bar is covered and its buttons are unreachable.
-            zIndex: state.nextZIndex,
+            // NOTE: keep every write site consistent with focusWindow's
+            // "100 +" offset - mixing them makes new windows sit below
+            // already-focused ones.
+            zIndex: 100 + state.nextZIndex,
             originalX: win.x,
             originalY: win.y,
             originalWidth: win.width,
@@ -164,7 +167,7 @@ export const useWindowStore = create<WindowStore>((set) => ({
       set((state) => ({
         windows: state.windows.map((w) =>
           w.id === existing.id
-            ? { ...w, isMinimized: false, zIndex: state.nextZIndex }
+            ? { ...w, isMinimized: false, zIndex: 100 + state.nextZIndex }
             : w,
         ),
         nextZIndex: state.nextZIndex + 1,

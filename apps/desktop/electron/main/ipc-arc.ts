@@ -17,13 +17,13 @@ export interface ArcIpcDeps {
 
 export function setupArcIpc({ getWalletManager }: ArcIpcDeps): void {
   ipcMain.handle('arc:quote', async (_e, args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) => {
-    const { amountOut } = await arcQuote({
+    const { amountOut, decimals } = await arcQuote({
       token: args.token,
       zeroForOne: args.zeroForOne,
       amountIn: BigInt(args.amountIn ?? '0'),
       hooks: args.hooks as `0x${string}` | undefined,
     })
-    return { amountOut: amountOut.toString() }
+    return { amountOut: amountOut.toString(), decimals }
   })
 
   ipcMain.handle('arc:balances', async (_e, args: { walletId: string; index?: number; token: string }) => {

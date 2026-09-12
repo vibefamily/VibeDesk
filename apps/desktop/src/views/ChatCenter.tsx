@@ -7,7 +7,7 @@
  * lightweight "manager" view; each conversation lives in ChatWindow.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
 import { useWindowStore } from '../components/95/windowStore'
 
@@ -40,6 +40,11 @@ const ChatCenter: React.FC = () => {
   const openWindow = useWindowStore((s) => s.openWindow)
 
   const [newing, setNewing] = useState(false)
+  // Guard against the auto-bootstrap retrying forever: once attempted
+  // (success or failure) it never runs again in this session. Previously
+  // a refresh failure reset the guard and re-created "General Chat" in a
+  // tight loop, filling the agent store with hundreds of duplicates.
+  const bootstrappedRef = useRef(false)
 
   // Keep the list in sync and bootstrap a General Chat session so the
   // user always has a default conversation to open.
@@ -48,7 +53,8 @@ const ChatCenter: React.FC = () => {
   }, [refresh])
 
   useEffect(() => {
-    if (loading) return
+    if (loading || bootstrappedRef.current) return
+    bootstrappedRef.current = true
     if (agents.length === 0 && !newing) {
       void (async () => {
         setNewing(true)

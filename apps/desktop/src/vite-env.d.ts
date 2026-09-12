@@ -106,6 +106,7 @@ interface AgentInstanceApiType {
 interface ArcApiType {
   quote: (args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) => Promise<{
     amountOut: string
+    decimals: number
   }>
   balances: (args: { walletId: string; index?: number; token: string }) => Promise<{
     nativeUsdc: string
