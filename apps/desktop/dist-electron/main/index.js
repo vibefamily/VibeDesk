@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { ipcMain, webContents, app, BrowserWindow, shell } from "electron";
-import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync, readdirSync, unlinkSync } from "node:fs";
 import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes as randomBytes$2, pbkdf2Sync, createCipheriv, createDecipheriv, scryptSync, randomUUID } from "node:crypto";
@@ -7024,6 +7024,41 @@ const BUILTIN_TEMPLATES = [
   STOCK_ANALYST_TEMPLATE,
   NEWS_COLLECTOR_TEMPLATE
 ];
+class JsonFileAgentStorage {
+  constructor(dir) {
+    this.dir = dir;
+    mkdirSync(dir, { recursive: true });
+  }
+  saveAgent(id, snapshot) {
+    writeFileSync(
+      join(this.dir, `${id}.json`),
+      JSON.stringify(snapshot, null, 2),
+      { encoding: "utf8", mode: 384 }
+    );
+  }
+  loadAgents() {
+    let files = [];
+    try {
+      files = readdirSync(this.dir).filter((f) => f.endsWith(".json"));
+    } catch {
+      return [];
+    }
+    const out = [];
+    for (const f of files) {
+      try {
+        out.push(JSON.parse(readFileSync(join(this.dir, f), "utf8")));
+      } catch {
+      }
+    }
+    return out;
+  }
+  removeAgent(id) {
+    try {
+      unlinkSync(join(this.dir, `${id}.json`));
+    } catch {
+    }
+  }
+}
 function createMarketTools(market) {
   return [
     {
@@ -7456,17 +7491,18 @@ class AgentManager {
     __publicField(this, "walletAccess");
     __publicField(this, "infoStore");
     __publicField(this, "llmProvider", null);
-    __publicField(this, "agentsDir", null);
+    __publicField(this, "storage", null);
     __publicField(this, "saveTimers", /* @__PURE__ */ new Map());
     this.market = options.market;
     this.walletAccess = options.walletAccess;
     this.infoStore = options.infoStore;
-    this.agentsDir = options.agentsDir ?? null;
-    if (this.agentsDir) {
+    if (options.storage) {
+      this.storage = options.storage;
+    } else if (options.agentsDir) {
       try {
-        mkdirSync(this.agentsDir, { recursive: true });
+        this.storage = new JsonFileAgentStorage(options.agentsDir);
       } catch {
-        this.agentsDir = null;
+        this.storage = null;
       }
     }
     for (const t of BUILTIN_TEMPLATES) {
@@ -7506,7 +7542,7 @@ class AgentManager {
   // --- Persistence (per-agent JSON in agentsDir) ---
   /** Schedule a debounced write of the agent instance. */
   persist(id) {
-    if (!this.agentsDir) return;
+    if (!this.storage) return;
     const existing = this.saveTimers.get(id);
     if (existing) clearTimeout(existing);
     this.saveTimers.set(
@@ -7516,15 +7552,10 @@ class AgentManager {
         const managed = this.agents.get(id);
         if (!managed) return;
         try {
-          writeFileSync(
-            join(this.agentsDir, `${id}.json`),
-            JSON.stringify(
-              { view: managed.view, running: managed.view.status === "running" },
-              null,
-              2
-            ),
-            { encoding: "utf8", mode: 384 }
-          );
+          this.storage.saveAgent(id, {
+            view: managed.view,
+            running: managed.view.status === "running"
+          });
         } catch (err) {
           console.error("[agents] persist failed:", err);
         }
@@ -7532,30 +7563,20 @@ class AgentManager {
     );
   }
   removePersisted(id) {
-    if (!this.agentsDir) return;
+    if (!this.storage) return;
     const t = this.saveTimers.get(id);
     if (t) {
       clearTimeout(t);
       this.saveTimers.delete(id);
     }
-    try {
-      unlinkSync(join(this.agentsDir, `${id}.json`));
-    } catch {
-    }
+    this.storage.removeAgent(id);
   }
   /** Restore persisted agents (call once at startup, after LLM config).
    *  Agents that were running before shutdown resume their timers. */
   restoreAll() {
-    if (!this.agentsDir) return;
-    let files = [];
-    try {
-      files = readdirSync(this.agentsDir).filter((f) => f.endsWith(".json"));
-    } catch {
-      return;
-    }
-    for (const f of files) {
+    if (!this.storage) return;
+    for (const raw of this.storage.loadAgents()) {
       try {
-        const raw = JSON.parse(readFileSync(join(this.agentsDir, f), "utf8"));
         const view = raw.view;
         if (!(view == null ? void 0 : view.id) || !view.templateId) continue;
         const template = this.templates.get(view.templateId);
@@ -7589,7 +7610,7 @@ class AgentManager {
           this.start(view.id);
         }
       } catch (err) {
-        console.error(`[agents] failed to restore ${f}:`, err);
+        console.error("[agents] failed to restore agent:", err);
       }
     }
   }

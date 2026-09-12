@@ -13,8 +13,6 @@
  */
 
 import { MarketDataAggregator } from '@vibe/core'
-import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { generateId } from '@vibe/shared/utils'
 import type { CandleData, OrderBookData, TickData } from '@vibe/shared'
 import { Agent } from './runtime/Agent'
@@ -23,6 +21,8 @@ import type { AgentTemplate } from './templates'
 import { BUILTIN_TEMPLATES } from './templates'
 import { OpenAICompatibleProvider } from './llm/OpenAICompatibleProvider'
 import type { OpenAIConfig } from './llm/OpenAICompatibleProvider'
+import { JsonFileAgentStorage } from './storage/types'
+import type { AgentStorage } from './storage/types'
 import { createMarketTools, type MarketToolsSource } from './tools/marketTools'
 import { createNewsTool } from './tools/newsTools'
 import { createInfoReadTool } from './tools/infoTools'
@@ -97,8 +97,11 @@ export interface AgentManagerOptions {
   walletAccess?: WalletReadAccess
   /** Local information store (Info Center cache); enables read_information. */
   infoStore?: InfoStore
-  /** Directory to persist agent instances (config + message history).
-   *  When omitted, agents stay in-memory only. */
+  /** Storage backend for agent instances (M5). Defaults to JSON files
+   *  under agentsDir when only agentsDir is given. */
+  storage?: AgentStorage
+  /** Directory to persist agent instances (M5) - shorthand that builds a
+   *  JsonFileAgentStorage. When omitted, agents stay in-memory only. */
   agentsDir?: string
 }
 
@@ -110,19 +113,20 @@ export class AgentManager {
   private walletAccess?: WalletReadAccess
   private infoStore?: InfoStore
   private llmProvider: OpenAICompatibleProvider | null = null
-  private agentsDir: string | null = null
+  private storage: AgentStorage | null = null
   private saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(options: AgentManagerOptions) {
     this.market = options.market
     this.walletAccess = options.walletAccess
     this.infoStore = options.infoStore
-    this.agentsDir = options.agentsDir ?? null
-    if (this.agentsDir) {
+    if (options.storage) {
+      this.storage = options.storage
+    } else if (options.agentsDir) {
       try {
-        mkdirSync(this.agentsDir, { recursive: true })
+        this.storage = new JsonFileAgentStorage(options.agentsDir)
       } catch {
-        this.agentsDir = null
+        this.storage = null
       }
     }
     for (const t of BUILTIN_TEMPLATES) {
@@ -171,7 +175,7 @@ export class AgentManager {
 
   /** Schedule a debounced write of the agent instance. */
   private persist(id: string): void {
-    if (!this.agentsDir) return
+    if (!this.storage) return
     const existing = this.saveTimers.get(id)
     if (existing) clearTimeout(existing)
     this.saveTimers.set(
@@ -181,15 +185,10 @@ export class AgentManager {
         const managed = this.agents.get(id)
         if (!managed) return
         try {
-          writeFileSync(
-            join(this.agentsDir!, `${id}.json`),
-            JSON.stringify(
-              { view: managed.view, running: managed.view.status === 'running' },
-              null,
-              2,
-            ),
-            { encoding: 'utf8', mode: 0o600 },
-          )
+          this.storage!.saveAgent(id, {
+            view: managed.view,
+            running: managed.view.status === 'running',
+          })
         } catch (err) {
           console.error('[agents] persist failed:', err)
         }
@@ -198,36 +197,22 @@ export class AgentManager {
   }
 
   private removePersisted(id: string): void {
-    if (!this.agentsDir) return
+    if (!this.storage) return
     const t = this.saveTimers.get(id)
     if (t) {
       clearTimeout(t)
       this.saveTimers.delete(id)
     }
-    try {
-      unlinkSync(join(this.agentsDir, `${id}.json`))
-    } catch {
-      // file already gone
-    }
+    this.storage.removeAgent(id)
   }
 
   /** Restore persisted agents (call once at startup, after LLM config).
    *  Agents that were running before shutdown resume their timers. */
   restoreAll(): void {
-    if (!this.agentsDir) return
-    let files: string[] = []
-    try {
-      files = readdirSync(this.agentsDir).filter((f) => f.endsWith('.json'))
-    } catch {
-      return
-    }
-    for (const f of files) {
+    if (!this.storage) return
+    for (const raw of this.storage.loadAgents()) {
       try {
-        const raw = JSON.parse(readFileSync(join(this.agentsDir, f), 'utf8')) as {
-          view?: Partial<AgentInstanceView>
-          running?: boolean
-        }
-        const view = raw.view
+        const view = raw.view as Partial<AgentInstanceView>
         if (!view?.id || !view.templateId) continue
         const template = this.templates.get(view.templateId)
         if (!template) continue
@@ -262,7 +247,7 @@ export class AgentManager {
           this.start(view.id)
         }
       } catch (err) {
-        console.error(`[agents] failed to restore ${f}:`, err)
+        console.error('[agents] failed to restore agent:', err)
       }
     }
   }
