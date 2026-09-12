@@ -13,6 +13,8 @@
  */
 
 import { MarketDataAggregator } from '@vibe/core'
+import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { generateId } from '@vibe/shared/utils'
 import type { TickData } from '@vibe/shared'
 import { Agent } from './runtime/Agent'
@@ -82,7 +84,7 @@ interface ManagedAgent {
   running: boolean
 }
 
-const MAX_MESSAGES = 60
+const MAX_MESSAGES = 500
 
 export interface AgentManagerOptions {
   /** Aggregator with live data sources (used by market tools + rule mode). */
@@ -91,6 +93,9 @@ export interface AgentManagerOptions {
   walletAccess?: WalletReadAccess
   /** Local information store (Info Center cache); enables read_information. */
   infoStore?: InfoStore
+  /** Directory to persist agent instances (config + message history).
+   *  When omitted, agents stay in-memory only. */
+  agentsDir?: string
 }
 
 export class AgentManager {
@@ -101,11 +106,21 @@ export class AgentManager {
   private walletAccess?: WalletReadAccess
   private infoStore?: InfoStore
   private llmProvider: OpenAICompatibleProvider | null = null
+  private agentsDir: string | null = null
+  private saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(options: AgentManagerOptions) {
     this.market = options.market
     this.walletAccess = options.walletAccess
     this.infoStore = options.infoStore
+    this.agentsDir = options.agentsDir ?? null
+    if (this.agentsDir) {
+      try {
+        mkdirSync(this.agentsDir, { recursive: true })
+      } catch {
+        this.agentsDir = null
+      }
+    }
     for (const t of BUILTIN_TEMPLATES) {
       this.registerTemplate(t)
     }
@@ -146,6 +161,104 @@ export class AgentManager {
 
   getMode(): AgentMode {
     return this.llmProvider ? 'llm' : 'rule'
+  }
+
+  // --- Persistence (per-agent JSON in agentsDir) ---
+
+  /** Schedule a debounced write of the agent instance. */
+  private persist(id: string): void {
+    if (!this.agentsDir) return
+    const existing = this.saveTimers.get(id)
+    if (existing) clearTimeout(existing)
+    this.saveTimers.set(
+      id,
+      setTimeout(() => {
+        this.saveTimers.delete(id)
+        const managed = this.agents.get(id)
+        if (!managed) return
+        try {
+          writeFileSync(
+            join(this.agentsDir!, `${id}.json`),
+            JSON.stringify(
+              { view: managed.view, running: managed.view.status === 'running' },
+              null,
+              2,
+            ),
+            { encoding: 'utf8', mode: 0o600 },
+          )
+        } catch (err) {
+          console.error('[agents] persist failed:', err)
+        }
+      }, 150),
+    )
+  }
+
+  private removePersisted(id: string): void {
+    if (!this.agentsDir) return
+    const t = this.saveTimers.get(id)
+    if (t) {
+      clearTimeout(t)
+      this.saveTimers.delete(id)
+    }
+    try {
+      unlinkSync(join(this.agentsDir, `${id}.json`))
+    } catch {
+      // file already gone
+    }
+  }
+
+  /** Restore persisted agents (call once at startup, after LLM config).
+   *  Agents that were running before shutdown resume their timers. */
+  restoreAll(): void {
+    if (!this.agentsDir) return
+    let files: string[] = []
+    try {
+      files = readdirSync(this.agentsDir).filter((f) => f.endsWith('.json'))
+    } catch {
+      return
+    }
+    for (const f of files) {
+      try {
+        const raw = JSON.parse(readFileSync(join(this.agentsDir, f), 'utf8')) as {
+          view?: Partial<AgentInstanceView>
+          running?: boolean
+        }
+        const view = raw.view
+        if (!view?.id || !view.templateId) continue
+        const template = this.templates.get(view.templateId)
+        if (!template) continue
+        const managed: ManagedAgent = {
+          template,
+          view: {
+            id: view.id,
+            templateId: view.templateId,
+            name: view.name ?? template.name,
+            icon: view.icon ?? template.icon,
+            status: view.status ?? 'idle',
+            mode: view.mode ?? this.getMode(),
+            symbols: Array.isArray(view.symbols) ? view.symbols : [...template.defaultSymbols],
+            intervalMs: typeof view.intervalMs === 'number' ? view.intervalMs : template.defaultIntervalMs,
+            createdAt: typeof view.createdAt === 'number' ? view.createdAt : Date.now(),
+            lastRunAt: typeof view.lastRunAt === 'number' ? view.lastRunAt : null,
+            lastMessage: typeof view.lastMessage === 'string' ? view.lastMessage : null,
+            messages: Array.isArray(view.messages)
+              ? view.messages.slice(-MAX_MESSAGES)
+              : [],
+          },
+          agent: null,
+          timer: null,
+          symbols: Array.isArray(view.symbols) ? view.symbols : [...template.defaultSymbols],
+          running: false,
+        }
+        if (this.llmProvider) managed.agent = this.buildAgent(managed)
+        this.agents.set(view.id, managed)
+        if (raw.running === true && managed.view.intervalMs > 0) {
+          this.start(view.id)
+        }
+      } catch (err) {
+        console.error(`[agents] failed to restore ${f}:`, err)
+      }
+    }
   }
 
   // --- Instance lifecycle ---
@@ -194,6 +307,7 @@ export class AgentManager {
     }
 
     this.agents.set(id, managed)
+    this.persist(id)
     return view
   }
 
@@ -230,6 +344,7 @@ export class AgentManager {
     managed.timer = setInterval(() => {
       void this.runOnce(id)
     }, managed.template.defaultIntervalMs)
+    this.persist(id)
   }
 
   /** Run one analysis cycle now (used by start and manual triggers). */
@@ -324,11 +439,13 @@ export class AgentManager {
     managed.agent?.cancel()
     managed.view.status = 'stopped'
     this.emit({ type: 'status', agentId: id, status: 'stopped', at: Date.now() })
+    this.persist(id)
   }
 
   remove(id: string): void {
     this.stop(id)
     this.agents.delete(id)
+    this.removePersisted(id)
   }
 
   get(id: string): AgentInstanceView | null {
@@ -349,6 +466,7 @@ export class AgentManager {
       clearInterval(managed.timer)
       managed.timer = setInterval(() => void this.runOnce(id), intervalMs)
     }
+    this.persist(id)
   }
 
   // --- Events ---
@@ -382,6 +500,7 @@ export class AgentManager {
     if (managed.view.messages.length > MAX_MESSAGES) {
       managed.view.messages.splice(0, managed.view.messages.length - MAX_MESSAGES)
     }
+    this.persist(agentId)
     if (msg.kind === 'step') {
       this.emit({ type: 'step', agentId, content: msg.content, at: entry.at })
     } else if (msg.kind === 'error') {

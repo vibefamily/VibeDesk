@@ -65,6 +65,8 @@ export async function setupAgentIpc(
   options: {
     getWallet: () => VaultWalletManager
     configPath: string
+    /** Directory to persist agent instances (M5). */
+    agentsDir: string
     /** Resolve the Info Center manager (M3); enables the read_information tool. */
     infoStore?: () => InfoManager | null
   },
@@ -79,6 +81,7 @@ export async function setupAgentIpc(
   const resolveInfo = options.infoStore
   agentManager = new AgentManager({
     market,
+    agentsDir: options.agentsDir,
     ...(resolveInfo
       ? {
           infoStore: {
@@ -116,6 +119,9 @@ export async function setupAgentIpc(
   if (saved) {
     agentManager.setLlmConfig(saved)
   }
+
+  // Restore persisted agent instances (config, message history, timers).
+  agentManager.restoreAll()
 
   // Fan agent events out to every renderer window.
   agentManager.onEvent((event) => {

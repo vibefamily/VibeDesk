@@ -277,6 +277,7 @@ app.whenReady().then(async () => {
   await setupAgentIpc({
     getWallet: getWalletManager,
     configPath: path.join(app.getPath('userData'), 'agent-config.json'),
+    agentsDir: path.join(app.getPath('userData'), 'agents'),
     infoStore: () => getInfoManager(),
   })
 

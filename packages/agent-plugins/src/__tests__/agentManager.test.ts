@@ -5,6 +5,9 @@
  * runs with a fake provider, status transitions and re-entrancy guard.
  */
 
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { MarketDataAggregator } from '@vibe/core'
 import type { IMarketDataProvider } from '@vibe/core'
@@ -210,5 +213,24 @@ describe('AgentManager.chat', () => {
     expect(after.messages.some((m) => m.kind === 'message' && m.content.includes('echo:'))).toBe(
       true,
     )
+  })
+
+  it('persists agents and restores them (config + messages) across instances', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vibe-agents-'))
+    const m1 = new AgentManager({ market: makeMarket(), agentsDir: dir })
+    const view = m1.create('stock-analyst', { name: 'Persistence Test', symbols: ['TSLA', 'NVDA'] })
+    await m1.runOnce(view.id)
+    // Give the debounced writer time to flush.
+    await new Promise((r) => setTimeout(r, 250))
+
+    // Simulate a restart: a fresh manager on the same directory.
+    const m2 = new AgentManager({ market: makeMarket(), agentsDir: dir })
+    m2.restoreAll()
+    const restored = m2.get(view.id)
+    expect(restored).not.toBeNull()
+    expect(restored!.name).toBe('Persistence Test')
+    expect(restored!.symbols).toEqual(['TSLA', 'NVDA'])
+    expect(restored!.templateId).toBe('stock-analyst')
+    expect(restored!.messages.length).toBeGreaterThanOrEqual(1)
   })
 })
