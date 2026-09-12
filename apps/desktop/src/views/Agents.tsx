@@ -10,6 +10,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
+import { useWindowStore } from '../components/95/windowStore'
 import AgentConfigPanel from '../components/AgentConfigPanel'
 import type { AgentInstanceView, AgentTemplateView } from '../stores/agentStore'
 
@@ -404,10 +405,28 @@ const AgentCard: React.FC<{
 
 const Agents: React.FC = () => {
   const { templates, agents, mode, loading, error, refresh, create } = useAgentStore()
+  const openChatWindow = useWindowStore((s) => s.openChatWindow)
   const [templateId, setTemplateId] = useState('')
   const [name, setName] = useState('')
   const [symbols, setSymbols] = useState('')
   const [desktopIcon, setDesktopIcon] = useState(true)
+
+  // Quick-create from a template button: create then open the chat
+  // window immediately (merged Chat Center behavior).
+  const [quickCreating, setQuickCreating] = useState(false)
+  const quickCreate = async (tplId: string) => {
+    if (quickCreating) return
+    setQuickCreating(true)
+    try {
+      const tpl = templates.find((t) => t.id === tplId)
+      await create({ templateId: tplId, name: tpl?.name ?? 'Chat' })
+      await refresh()
+      const created = useAgentStore.getState().agents.find((a) => a.templateId === tplId)
+      if (created) openChatWindow(created.id, created.name, created.icon)
+    } finally {
+      setQuickCreating(false)
+    }
+  }
 
   useEffect(() => {
     void refresh()
@@ -444,7 +463,7 @@ const Agents: React.FC = () => {
   return (
     <div style={{ padding: 10, maxWidth: 900, background: '#c0c0c0', color: '#000' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, fontSize: 16, color: '#000' }}>Agents</h2>
+        <h2 style={{ margin: 0, fontSize: 16, color: '#000' }}>Agent Manager</h2>
         <Chip color={mode === 'llm' ? '#960' : '#666'}>
           {mode === 'llm' ? '⚡ LLM mode (OpenAI-compatible)' : 'Rule mode (no LLM key)'}
         </Chip>
@@ -452,6 +471,33 @@ const Agents: React.FC = () => {
           {agents.length} instance{agents.length === 1 ? '' : 's'} running in the main process
         </span>
         <span style={{ flex: 1 }} />
+      </div>
+
+      {/* Quick-create from template (merged Chat Center) */}
+      <div style={{ ...card, marginTop: 8 }}>
+        <div style={{ fontSize: 10, borderBottom: '1px solid #808080', paddingBottom: 2, marginBottom: 4 }}>
+          New chat from template
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {templates.map((t) => (
+            <button
+              key={t.id}
+              style={{ ...btn, textAlign: 'left' }}
+              disabled={quickCreating}
+              onClick={() => void quickCreate(t.id)}
+              title={t.description}
+            >
+              {t.icon} {t.name}
+            </button>
+          ))}
+          <button
+            style={{ ...btn, textAlign: 'left' }}
+            disabled={quickCreating}
+            onClick={() => void quickCreate('general-chat')}
+          >
+            💬 General Chat
+          </button>
+        </div>
       </div>
 
       {mode === 'rule' && (

@@ -33,8 +33,7 @@ export const START_MENU: {
     group: 'Agent',
     items: [
       { key: 'agent-chat', label: 'Agent', icon: '💬', title: 'Agent - Chat with your default agent' },
-      { key: 'agents', label: 'Agent Manager', icon: '🤖', title: 'Agent Manager - Create & manage agents' },
-      { key: 'chat-center', label: 'Chat Center', icon: '🧩', title: 'Chat Center - Session templates' },
+      { key: 'agents', label: 'Agent Manager', icon: '🤖', title: 'Agent Manager - Create, chat & manage agents' },
     ],
   },
   {

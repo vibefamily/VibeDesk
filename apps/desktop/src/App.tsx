@@ -15,6 +15,7 @@ import { createGlobalStyle } from 'styled-components'
 import { useEffect } from 'react'
 import Desktop from './components/95/Desktop'
 import { useWindowStore } from './components/95/windowStore'
+import { useAgentStore } from './stores/agentStore'
 
 const GlobalStyles = createGlobalStyle`
   ${styleReset}
@@ -46,11 +47,25 @@ const GlobalStyles = createGlobalStyle`
 `
 
 const App: React.FC = () => {
-  // The Chat Center is the default home screen: it opens on startup so the
-  // user can start a conversation immediately.
+  // Boot directly into the default agent's chat window so the user can
+  // start a conversation immediately. On a first run (no agents yet) the
+  // bootstrap creates the default General Chat first, so the user lands
+  // in a working chat window right away.
   useEffect(() => {
-    const t = setTimeout(() => {
-      useWindowStore.getState().openWindow('chat-center', 'Chat Center', '💬')
+    const t = setTimeout(async () => {
+      const store = useAgentStore.getState()
+      await store.refresh()
+      let def = store.agents[0] ?? null
+      if (!def) {
+        await store.create({ templateId: 'general-chat', name: 'General Chat' })
+        await store.refresh()
+        def = useAgentStore.getState().agents[0] ?? null
+      }
+      if (def) {
+        useWindowStore.getState().openChatWindow(def.id, def.name, def.icon)
+      } else {
+        useWindowStore.getState().openWindow('chat-center', 'Chat Center', '💬')
+      }
     }, 120)
     return () => clearTimeout(t)
   }, [])

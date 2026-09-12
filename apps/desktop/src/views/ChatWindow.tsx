@@ -173,7 +173,7 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
         </button>
         <button
           style={BTN}
-          onClick={() => openWindow('chat-center', 'Chat Center', '💬', { width: 340, height: 440 })}
+          onClick={() => openWindow('agents', 'Agent Manager', '🤖')}
         >
           Sessions
         </button>
