@@ -215,6 +215,25 @@ describe('AgentManager.chat', () => {
     )
   })
 
+  it('scopes tools by per-agent data source and wallet auth', async () => {
+    const manager = new AgentManager({ market: makeMarket() })
+    const view = manager.create('stock-analyst', {
+      name: 'Scoped',
+      symbols: ['TSLA'],
+      dataSources: ['a'],
+      walletAuths: ['w1:0'],
+    })
+    expect(view.dataSources).toEqual(['a'])
+    expect(view.walletAuths).toEqual(['w1:0'])
+
+    // Setters update the view (and rebuild the agent's tool set).
+    manager.setDataSourceAuth(view.id, ['b'])
+    manager.setWalletAuth(view.id, ['w2'])
+    const after = manager.get(view.id)!
+    expect(after.dataSources).toEqual(['b'])
+    expect(after.walletAuths).toEqual(['w2'])
+  })
+
   it('persists agents and restores them (config + messages) across instances', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'vibe-agents-'))
     const m1 = new AgentManager({ market: makeMarket(), agentsDir: dir })
@@ -232,5 +251,19 @@ describe('AgentManager.chat', () => {
     expect(restored!.symbols).toEqual(['TSLA', 'NVDA'])
     expect(restored!.templateId).toBe('stock-analyst')
     expect(restored!.messages.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('restores per-agent auth fields from disk', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'vibe-agents-auth-'))
+    const m1 = new AgentManager({ market: makeMarket(), agentsDir: dir })
+    m1.create('stock-analyst', { name: 'Auth', symbols: ['TSLA'], dataSources: ['a'], walletAuths: ['w:0'] })
+    await new Promise((r) => setTimeout(r, 250))
+
+    const m2 = new AgentManager({ market: makeMarket(), agentsDir: dir })
+    m2.restoreAll()
+    const views = m2.list()
+    expect(views).toHaveLength(1)
+    expect(views[0]!.dataSources).toEqual(['a'])
+    expect(views[0]!.walletAuths).toEqual(['w:0'])
   })
 })

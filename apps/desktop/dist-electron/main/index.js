@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 import { ipcMain, webContents, app, BrowserWindow, shell } from "electron";
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync, unlinkSync, readdirSync } from "node:fs";
 import path, { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes as randomBytes$2, pbkdf2Sync, createCipheriv, createDecipheriv, scryptSync, randomUUID } from "node:crypto";
@@ -7446,7 +7446,7 @@ function analyzeStock(symbol, ticks) {
 function sourceCountLabel(count) {
   return count === 1 ? "1 source" : `${count} sources`;
 }
-const MAX_MESSAGES = 60;
+const MAX_MESSAGES = 500;
 class AgentManager {
   constructor(options) {
     __publicField(this, "templates", /* @__PURE__ */ new Map());
@@ -7456,9 +7456,19 @@ class AgentManager {
     __publicField(this, "walletAccess");
     __publicField(this, "infoStore");
     __publicField(this, "llmProvider", null);
+    __publicField(this, "agentsDir", null);
+    __publicField(this, "saveTimers", /* @__PURE__ */ new Map());
     this.market = options.market;
     this.walletAccess = options.walletAccess;
     this.infoStore = options.infoStore;
+    this.agentsDir = options.agentsDir ?? null;
+    if (this.agentsDir) {
+      try {
+        mkdirSync(this.agentsDir, { recursive: true });
+      } catch {
+        this.agentsDir = null;
+      }
+    }
     for (const t of BUILTIN_TEMPLATES) {
       this.registerTemplate(t);
     }
@@ -7493,6 +7503,96 @@ class AgentManager {
   getMode() {
     return this.llmProvider ? "llm" : "rule";
   }
+  // --- Persistence (per-agent JSON in agentsDir) ---
+  /** Schedule a debounced write of the agent instance. */
+  persist(id) {
+    if (!this.agentsDir) return;
+    const existing = this.saveTimers.get(id);
+    if (existing) clearTimeout(existing);
+    this.saveTimers.set(
+      id,
+      setTimeout(() => {
+        this.saveTimers.delete(id);
+        const managed = this.agents.get(id);
+        if (!managed) return;
+        try {
+          writeFileSync(
+            join(this.agentsDir, `${id}.json`),
+            JSON.stringify(
+              { view: managed.view, running: managed.view.status === "running" },
+              null,
+              2
+            ),
+            { encoding: "utf8", mode: 384 }
+          );
+        } catch (err) {
+          console.error("[agents] persist failed:", err);
+        }
+      }, 150)
+    );
+  }
+  removePersisted(id) {
+    if (!this.agentsDir) return;
+    const t = this.saveTimers.get(id);
+    if (t) {
+      clearTimeout(t);
+      this.saveTimers.delete(id);
+    }
+    try {
+      unlinkSync(join(this.agentsDir, `${id}.json`));
+    } catch {
+    }
+  }
+  /** Restore persisted agents (call once at startup, after LLM config).
+   *  Agents that were running before shutdown resume their timers. */
+  restoreAll() {
+    if (!this.agentsDir) return;
+    let files = [];
+    try {
+      files = readdirSync(this.agentsDir).filter((f) => f.endsWith(".json"));
+    } catch {
+      return;
+    }
+    for (const f of files) {
+      try {
+        const raw = JSON.parse(readFileSync(join(this.agentsDir, f), "utf8"));
+        const view = raw.view;
+        if (!(view == null ? void 0 : view.id) || !view.templateId) continue;
+        const template = this.templates.get(view.templateId);
+        if (!template) continue;
+        const managed = {
+          template,
+          view: {
+            id: view.id,
+            templateId: view.templateId,
+            name: view.name ?? template.name,
+            icon: view.icon ?? template.icon,
+            status: view.status ?? "idle",
+            mode: view.mode ?? this.getMode(),
+            symbols: Array.isArray(view.symbols) ? view.symbols : [...template.defaultSymbols],
+            intervalMs: typeof view.intervalMs === "number" ? view.intervalMs : template.defaultIntervalMs,
+            createdAt: typeof view.createdAt === "number" ? view.createdAt : Date.now(),
+            lastRunAt: typeof view.lastRunAt === "number" ? view.lastRunAt : null,
+            lastMessage: typeof view.lastMessage === "string" ? view.lastMessage : null,
+            messages: Array.isArray(view.messages) ? view.messages.slice(-MAX_MESSAGES) : [],
+            dataSources: Array.isArray(view.dataSources) ? view.dataSources : [],
+            walletAuths: Array.isArray(view.walletAuths) ? view.walletAuths : []
+          },
+          agent: null,
+          timer: null,
+          symbols: Array.isArray(view.symbols) ? view.symbols : [...template.defaultSymbols],
+          running: false
+        };
+        if (this.llmProvider) managed.agent = this.buildAgent(managed);
+        this.agents.set(view.id, managed);
+        if (raw.running === true && managed.view.intervalMs > 0) {
+          this.start(view.id);
+        }
+      } catch (err) {
+        console.error(`[agents] failed to restore ${f}:`, err);
+      }
+    }
+  }
   // --- Instance lifecycle ---
   create(templateId, options = {}) {
     var _a;
@@ -7515,7 +7615,9 @@ class AgentManager {
       createdAt: Date.now(),
       lastRunAt: null,
       lastMessage: null,
-      messages: []
+      messages: [],
+      dataSources: options.dataSources ?? [],
+      walletAuths: options.walletAuths ?? []
     };
     const managed = {
       template,
@@ -7529,6 +7631,7 @@ class AgentManager {
       managed.agent = this.buildAgent(managed);
     }
     this.agents.set(id, managed);
+    this.persist(id);
     return view;
   }
   buildAgent(managed) {
@@ -7536,8 +7639,8 @@ class AgentManager {
     const config = template.buildConfig(view.id, view.name, this.llmProvider.getConfig().model);
     const agent = new Agent(config, this.llmProvider);
     const tools = [
-      ...createMarketTools(this.market),
-      ...this.walletAccess ? [createWalletReadTool(this.walletAccess)] : [],
+      ...createMarketTools(new ScopedMarket(this.market, view.dataSources)),
+      ...this.walletAccess ? [createWalletReadTool(new ScopedWalletAccess(this.walletAccess, view.walletAuths))] : [],
       ...this.infoStore ? [createInfoReadTool(this.infoStore)] : [],
       createNewsTool()
     ];
@@ -7554,6 +7657,22 @@ class AgentManager {
     });
     return agent;
   }
+  /** Restrict the data sources this agent may query (empty = all). */
+  setDataSourceAuth(id, dataSources) {
+    const managed = this.agents.get(id);
+    if (!managed) return;
+    managed.view.dataSources = [...new Set(dataSources)];
+    if (this.llmProvider) managed.agent = this.buildAgent(managed);
+    this.persist(id);
+  }
+  /** Restrict the authorized wallets this agent may read (empty = none). */
+  setWalletAuth(id, walletAuths) {
+    const managed = this.agents.get(id);
+    if (!managed) return;
+    managed.view.walletAuths = [...new Set(walletAuths)];
+    if (this.llmProvider) managed.agent = this.buildAgent(managed);
+    this.persist(id);
+  }
   start(id) {
     const managed = this.agents.get(id);
     if (!managed) throw new Error(`Unknown agent: ${id}`);
@@ -7562,6 +7681,7 @@ class AgentManager {
     managed.timer = setInterval(() => {
       void this.runOnce(id);
     }, managed.template.defaultIntervalMs);
+    this.persist(id);
   }
   /** Run one analysis cycle now (used by start and manual triggers). */
   async runOnce(id) {
@@ -7651,10 +7771,12 @@ class AgentManager {
     (_a = managed.agent) == null ? void 0 : _a.cancel();
     managed.view.status = "stopped";
     this.emit({ type: "status", agentId: id, status: "stopped", at: Date.now() });
+    this.persist(id);
   }
   remove(id) {
     this.stop(id);
     this.agents.delete(id);
+    this.removePersisted(id);
   }
   get(id) {
     var _a;
@@ -7673,6 +7795,7 @@ class AgentManager {
       clearInterval(managed.timer);
       managed.timer = setInterval(() => void this.runOnce(id), intervalMs);
     }
+    this.persist(id);
   }
   // --- Events ---
   onEvent(listener) {
@@ -7701,6 +7824,7 @@ class AgentManager {
     if (managed.view.messages.length > MAX_MESSAGES) {
       managed.view.messages.splice(0, managed.view.messages.length - MAX_MESSAGES);
     }
+    this.persist(agentId);
     if (msg.kind === "step") {
       this.emit({ type: "step", agentId, content: msg.content, at: entry.at });
     } else if (msg.kind === "error") {
@@ -7708,6 +7832,56 @@ class AgentManager {
     } else {
       this.emit({ type: "message", agentId, content: msg.content, at: entry.at });
     }
+  }
+}
+class ScopedMarket {
+  constructor(inner, sources) {
+    this.inner = inner;
+    this.sources = sources;
+  }
+  allowed(providerId) {
+    if (this.sources.length === 0) return true;
+    return providerId ? this.sources.includes(providerId) : true;
+  }
+  async getTick(symbol, providerId) {
+    if (!this.allowed(providerId)) {
+      throw new Error(`Data source '${providerId}' is not authorized for this agent`);
+    }
+    return this.inner.getTick(symbol, providerId);
+  }
+  async getTicksAll(symbol) {
+    const providers = this.inner.listProviders().filter((p) => this.allowed(p.id));
+    const out = /* @__PURE__ */ new Map();
+    await Promise.all(
+      providers.map(async (provider) => {
+        try {
+          const tick = await provider.getTick(symbol);
+          out.set(provider.id, tick);
+        } catch {
+        }
+      })
+    );
+    return out;
+  }
+  async getCandles(symbol, timeframe, options) {
+    return this.inner.getCandles(symbol, timeframe, options);
+  }
+  async getOrderBook(symbol, limit, providerId) {
+    if (!this.allowed(providerId)) {
+      throw new Error(`Data source '${providerId}' is not authorized for this agent`);
+    }
+    return this.inner.getOrderBook(symbol, limit, providerId);
+  }
+}
+class ScopedWalletAccess {
+  constructor(inner, keys) {
+    this.inner = inner;
+    this.keys = keys;
+  }
+  listAuthorizedWallets() {
+    if (this.keys.length === 0) return [];
+    const byKey = new Map(this.inner.listAuthorizedWallets().map((w) => [w.id, w]));
+    return this.keys.map((k) => byKey.get(k)).filter((w) => w !== void 0);
   }
 }
 function formatAnalysis(a) {
@@ -8981,6 +9155,7 @@ async function setupAgentIpc(options) {
   const resolveInfo = options.infoStore;
   agentManager = new AgentManager({
     market,
+    agentsDir: options.agentsDir,
     ...resolveInfo ? {
       infoStore: {
         search: (q) => {
@@ -9013,6 +9188,18 @@ async function setupAgentIpc(options) {
   if (saved) {
     agentManager.setLlmConfig(saved);
   }
+  agentManager.restoreAll();
+  ipcMain.handle("agent:listDataSources", () => {
+    return market.listProviders().map((p) => p.id);
+  });
+  ipcMain.handle("agent:setDataSourceAuth", (_e, args) => {
+    agentManager.setDataSourceAuth(args.id, args.dataSources ?? []);
+    return agentManager.get(args.id);
+  });
+  ipcMain.handle("agent:setWalletAuth", (_e, args) => {
+    agentManager.setWalletAuth(args.id, args.walletAuths ?? []);
+    return agentManager.get(args.id);
+  });
   agentManager.onEvent((event) => {
     for (const wc of webContents.getAllWebContents()) {
       wc.send("agent:event", event);
@@ -9571,6 +9758,7 @@ app.whenReady().then(async () => {
   await setupAgentIpc({
     getWallet: getWalletManager,
     configPath: path.join(app.getPath("userData"), "agent-config.json"),
+    agentsDir: path.join(app.getPath("userData"), "agents"),
     infoStore: () => getInfoManager()
   });
   app.on("activate", () => {

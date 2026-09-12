@@ -4,13 +4,22 @@
  * Exposes market data functionality as LLM-callable tools.
  */
 
-import type { MarketDataAggregator } from '@vibe/core'
+import type { CandleData, OrderBookData, TickData } from '@vibe/shared'
 import type { ToolDefinition } from '../runtime/types'
 
+/** The subset of the market aggregator the agent tools need. A scoped
+ *  wrapper can be passed to restrict an agent to authorized sources. */
+export interface MarketToolsSource {
+  getTick(symbol: string, providerId?: string): Promise<TickData>
+  getTicksAll(symbol: string): Promise<Map<string, TickData>>
+  getCandles(symbol: string, timeframe: string, options?: { limit?: number }): Promise<CandleData[]>
+  getOrderBook(symbol: string, limit?: number, providerId?: string): Promise<OrderBookData>
+}
+
 /**
- * Create market data tools that query a MarketDataAggregator.
+ * Create market data tools that query a market data source.
  */
-export function createMarketTools(market: MarketDataAggregator): ToolDefinition[] {
+export function createMarketTools(market: MarketToolsSource): ToolDefinition[] {
   return [
     {
       name: 'get_price',

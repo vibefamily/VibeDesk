@@ -91,10 +91,21 @@ interface AgentInstanceApiType {
   createdAt: number
   lastRunAt: number | null
   lastMessage: string | null
-  messages: { id: string; at: number; kind: string; content: string }[]
+  messages: {
+    id: string
+    at: number
+    kind: string
+    content: string
+    role?: 'user' | 'agent'
+  }[]
+  dataSources: string[]
+  walletAuths: string[]
 }
 
 interface AgentApiType {
+  listDataSources: () => Promise<string[]>
+  setDataSourceAuth: (args: { id: string; dataSources: string[] }) => Promise<AgentInstanceApiType | null>
+  setWalletAuth: (args: { id: string; walletAuths: string[] }) => Promise<AgentInstanceApiType | null>
   listTemplates: () => Promise<AgentTemplateApiType[]>
   list: () => Promise<AgentInstanceApiType[]>
   getMode: () => Promise<'llm' | 'rule'>

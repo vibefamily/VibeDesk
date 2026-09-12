@@ -123,6 +123,20 @@ export async function setupAgentIpc(
   // Restore persisted agent instances (config, message history, timers).
   agentManager.restoreAll()
 
+  ipcMain.handle('agent:listDataSources', () => {
+    return market.listProviders().map((p) => p.id)
+  })
+
+  ipcMain.handle('agent:setDataSourceAuth', (_e, args: { id: string; dataSources: string[] }) => {
+    agentManager!.setDataSourceAuth(args.id, args.dataSources ?? [])
+    return agentManager!.get(args.id)
+  })
+
+  ipcMain.handle('agent:setWalletAuth', (_e, args: { id: string; walletAuths: string[] }) => {
+    agentManager!.setWalletAuth(args.id, args.walletAuths ?? [])
+    return agentManager!.get(args.id)
+  })
+
   // Fan agent events out to every renderer window.
   agentManager.onEvent((event) => {
     for (const wc of webContents.getAllWebContents()) {

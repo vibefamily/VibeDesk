@@ -16,14 +16,14 @@ import { MarketDataAggregator } from '@vibe/core'
 import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { generateId } from '@vibe/shared/utils'
-import type { TickData } from '@vibe/shared'
+import type { CandleData, OrderBookData, TickData } from '@vibe/shared'
 import { Agent } from './runtime/Agent'
 import type { AgentConfig, LLMProvider } from './runtime/types'
 import type { AgentTemplate } from './templates'
 import { BUILTIN_TEMPLATES } from './templates'
 import { OpenAICompatibleProvider } from './llm/OpenAICompatibleProvider'
 import type { OpenAIConfig } from './llm/OpenAICompatibleProvider'
-import { createMarketTools } from './tools/marketTools'
+import { createMarketTools, type MarketToolsSource } from './tools/marketTools'
 import { createNewsTool } from './tools/newsTools'
 import { createInfoReadTool } from './tools/infoTools'
 import type { InfoStore } from './tools/infoTools'
@@ -64,6 +64,10 @@ export interface AgentInstanceView {
   lastMessage: string | null
   /** Recent output lines (capped) */
   messages: AgentMessageView[]
+  /** Data source ids this agent may query (empty = all registered). */
+  dataSources: string[]
+  /** Authorized wallet keys this agent may read (walletId:index, empty = none). */
+  walletAuths: string[]
 }
 
 /** Events emitted by the AgentManager. */
@@ -244,6 +248,8 @@ export class AgentManager {
             messages: Array.isArray(view.messages)
               ? view.messages.slice(-MAX_MESSAGES)
               : [],
+            dataSources: Array.isArray(view.dataSources) ? view.dataSources : [],
+            walletAuths: Array.isArray(view.walletAuths) ? view.walletAuths : [],
           },
           agent: null,
           timer: null,
@@ -265,7 +271,12 @@ export class AgentManager {
 
   create(
     templateId: string,
-    options: { name?: string; symbols?: string[] } = {},
+    options: {
+      name?: string
+      symbols?: string[]
+      dataSources?: string[]
+      walletAuths?: string[]
+    } = {},
   ): AgentInstanceView {
     const template = this.templates.get(templateId)
     if (!template) {
@@ -290,6 +301,8 @@ export class AgentManager {
       lastRunAt: null,
       lastMessage: null,
       messages: [],
+      dataSources: options.dataSources ?? [],
+      walletAuths: options.walletAuths ?? [],
     }
 
     const managed: ManagedAgent = {
@@ -316,8 +329,10 @@ export class AgentManager {
     const config: AgentConfig = template.buildConfig(view.id, view.name, this.llmProvider!.getConfig().model)
     const agent = new Agent(config, this.llmProvider!)
     const tools = [
-      ...createMarketTools(this.market),
-      ...(this.walletAccess ? [createWalletReadTool(this.walletAccess)] : []),
+      ...createMarketTools(new ScopedMarket(this.market, view.dataSources)),
+      ...(this.walletAccess
+        ? [createWalletReadTool(new ScopedWalletAccess(this.walletAccess, view.walletAuths))]
+        : []),
       ...(this.infoStore ? [createInfoReadTool(this.infoStore)] : []),
       createNewsTool(),
     ]
@@ -333,6 +348,24 @@ export class AgentManager {
       }
     })
     return agent
+  }
+
+  /** Restrict the data sources this agent may query (empty = all). */
+  setDataSourceAuth(id: string, dataSources: string[]): void {
+    const managed = this.agents.get(id)
+    if (!managed) return
+    managed.view.dataSources = [...new Set(dataSources)]
+    if (this.llmProvider) managed.agent = this.buildAgent(managed)
+    this.persist(id)
+  }
+
+  /** Restrict the authorized wallets this agent may read (empty = none). */
+  setWalletAuth(id: string, walletAuths: string[]): void {
+    const managed = this.agents.get(id)
+    if (!managed) return
+    managed.view.walletAuths = [...new Set(walletAuths)]
+    if (this.llmProvider) managed.agent = this.buildAgent(managed)
+    this.persist(id)
   }
 
   start(id: string): void {
@@ -508,6 +541,77 @@ export class AgentManager {
     } else {
       this.emit({ type: 'message', agentId, content: msg.content, at: entry.at })
     }
+  }
+}
+
+/** Market source wrapper that only exposes authorized providers. */
+class ScopedMarket implements MarketToolsSource {
+  constructor(
+    private inner: MarketDataAggregator,
+    private sources: string[],
+  ) {}
+
+  private allowed(providerId?: string): boolean {
+    if (this.sources.length === 0) return true
+    return providerId ? this.sources.includes(providerId) : true
+  }
+
+  async getTick(symbol: string, providerId?: string): Promise<TickData> {
+    if (!this.allowed(providerId)) {
+      throw new Error(`Data source '${providerId}' is not authorized for this agent`)
+    }
+    return this.inner.getTick(symbol, providerId)
+  }
+
+  async getTicksAll(symbol: string): Promise<Map<string, TickData>> {
+    const providers = this.inner.listProviders().filter((p) => this.allowed(p.id))
+    const out = new Map<string, TickData>()
+    await Promise.all(
+      providers.map(async (provider) => {
+        try {
+          const tick = await provider.getTick(symbol)
+          out.set(provider.id, tick)
+        } catch {
+          // skip unavailable sources
+        }
+      }),
+    )
+    return out
+  }
+
+  async getCandles(
+    symbol: string,
+    timeframe: string,
+    options?: { limit?: number },
+  ): Promise<CandleData[]> {
+    return this.inner.getCandles(symbol, timeframe as never, options)
+  }
+
+  async getOrderBook(
+    symbol: string,
+    limit?: number,
+    providerId?: string,
+  ): Promise<OrderBookData> {
+    if (!this.allowed(providerId)) {
+      throw new Error(`Data source '${providerId}' is not authorized for this agent`)
+    }
+    return this.inner.getOrderBook(symbol, limit, providerId)
+  }
+}
+
+/** Wallet read access wrapper that only exposes authorized wallet keys. */
+class ScopedWalletAccess implements WalletReadAccess {
+  constructor(
+    private inner: WalletReadAccess,
+    private keys: string[],
+  ) {}
+
+  listAuthorizedWallets(): { id: string; address: string; name: string }[] {
+    if (this.keys.length === 0) return []
+    const byKey = new Map(this.inner.listAuthorizedWallets().map((w) => [w.id, w]))
+    return this.keys
+      .map((k) => byKey.get(k))
+      .filter((w): w is { id: string; address: string; name: string } => w !== undefined)
   }
 }
 

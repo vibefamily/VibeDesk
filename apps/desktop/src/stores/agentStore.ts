@@ -38,6 +38,8 @@ export interface AgentInstanceView {
   lastRunAt: number | null
   lastMessage: string | null
   messages: AgentMessageView[]
+  dataSources: string[]
+  walletAuths: string[]
 }
 
 export interface LlmConfig {
@@ -59,6 +61,9 @@ interface AgentState {
   remove: (id: string) => Promise<void>
   runOnce: (id: string) => Promise<void>
   chat: (id: string, text: string) => Promise<void>
+  dataSources: string[]
+  setDataSourceAuth: (id: string, sources: string[]) => Promise<void>
+  setWalletAuth: (id: string, keys: string[]) => Promise<void>
   setLlmConfig: (config: LlmConfig | null) => Promise<{ mode: 'llm' | 'rule' }>
   getLlmConfig: () => Promise<LlmConfig | null>
   applyEvent: (event: {
@@ -78,18 +83,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   templates: [],
   agents: [],
   mode: 'rule',
+  dataSources: [],
   loading: false,
   error: null,
 
   refresh: async () => {
     set({ loading: true })
     try {
-      const [templates, agents, mode] = await Promise.all([
+      const [templates, agents, mode, dataSources] = await Promise.all([
         api.listTemplates(),
         api.list(),
         api.getMode(),
+        api.listDataSources(),
       ])
-      set({ templates, agents, mode })
+      set({ templates, agents, mode, dataSources })
     } catch (e) {
       set({ error: (e as Error).message })
     } finally {
@@ -124,6 +131,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   chat: async (id, text) => {
     await api.chat(id, text)
+    await get().refresh()
+  },
+
+  setDataSourceAuth: async (id, sources) => {
+    await api.setDataSourceAuth({ id, dataSources: sources })
+    await get().refresh()
+  },
+
+  setWalletAuth: async (id, keys) => {
+    await api.setWalletAuth({ id, walletAuths: keys })
     await get().refresh()
   },
 

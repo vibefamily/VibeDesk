@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
 import type { AgentInstanceView, AgentTemplateView } from '../stores/agentStore'
+import { useWalletStore } from '../stores/walletStore'
 
 const STATUS_COLOR: Record<string, string> = {
   idle: '#000',
@@ -96,10 +97,16 @@ const AgentCard: React.FC<{
   templates: AgentTemplateView[]
   onChanged: () => void
 }> = ({ agent, templates, onChanged }) => {
-  const { start, stop, remove, runOnce, chat } = useAgentStore()
+  const { start, stop, remove, runOnce, chat, setDataSourceAuth, setWalletAuth, dataSources } =
+    useAgentStore()
+  const authorizedWallets = useWalletStore((s) => s.authorized)
+  const walletMetas = useWalletStore((s) => s.wallets)
   const [expanded, setExpanded] = useState(false)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [dsSel, setDsSel] = useState<string[]>(agent.dataSources)
+  const [waSel, setWaSel] = useState<string[]>(agent.walletAuths)
+  const [authSaved, setAuthSaved] = useState(false)
 
   const sendChat = async () => {
     const text = input.trim()
@@ -154,6 +161,16 @@ const AgentCard: React.FC<{
         <button style={btn} onClick={() => setExpanded(!expanded)}>
           {expanded ? 'Collapse' : `Log (${messages.length})`}
         </button>
+        <button
+          style={btnPrimary}
+          onClick={() => {
+            setDsSel(agent.dataSources)
+            setWaSel(agent.walletAuths)
+            setExpanded(true)
+          }}
+        >
+          Configure
+        </button>
       </div>
 
       {agent.lastMessage && !expanded && (
@@ -187,6 +204,108 @@ const AgentCard: React.FC<{
             padding: 6,
           }}
         >
+          {/* Per-agent authorization: data sources + wallets (M5-2) */}
+          <div
+            style={{
+              border: '2px inset',
+              borderColor: '#808080 #fff #fff #808080',
+              background: '#c0c0c0',
+              padding: 6,
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000', marginBottom: 4 }}>
+              Authorized data sources
+            </div>
+            {dataSources.length === 0 && (
+              <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>No sources registered.</div>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+              {dataSources.map((ds) => (
+                <label key={ds} style={{ fontSize: 11, color: '#000', display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={dsSel.includes(ds)}
+                    onChange={(e) => {
+                      setDsSel((prev) =>
+                        e.target.checked
+                          ? [...prev, ds]
+                          : prev.filter((x) => x !== ds),
+                      )
+                    }}
+                  />
+                  {ds}
+                </label>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+              Empty selection = all registered sources.
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000', margin: '8px 0 4px' }}>
+              Authorized wallets (granted in Wallet Manager)
+            </div>
+            {authorizedWallets.length === 0 && (
+              <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>
+                No wallet accounts granted yet. Unlock the vault and grant an agent in Wallet Manager.
+              </div>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+              {walletMetas.flatMap((w) => {
+                if (w.kind === 'hd' && w.accounts && w.accounts.length > 0) {
+                  return w.accounts.map((a) => ({
+                    key: `${w.id}:${a.index}`,
+                    label: `${w.name} #${a.index}`,
+                    address: a.address,
+                  }))
+                }
+                return [{ key: w.id, label: w.name, address: w.address }]
+              })
+                .filter((o) => authorizedWallets.includes(o.key))
+                .map((o) => (
+                  <label
+                    key={o.key}
+                    style={{
+                      fontSize: 11,
+                      color: '#000',
+                      display: 'flex',
+                      gap: 4,
+                      alignItems: 'center',
+                    }}
+                    title={o.address}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={waSel.includes(o.key)}
+                      onChange={(e) => {
+                        setWaSel((prev) =>
+                          e.target.checked
+                            ? [...prev, o.key]
+                            : prev.filter((x) => x !== o.key),
+                        )
+                      }}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+              <button
+                style={btnPrimary}
+                onClick={async () => {
+                  await setDataSourceAuth(agent.id, dsSel)
+                  await setWalletAuth(agent.id, waSel)
+                  setAuthSaved(true)
+                  setTimeout(() => setAuthSaved(false), 1500)
+                  onChanged()
+                }}
+              >
+                Save auth
+              </button>
+              {authSaved && <span style={{ fontSize: 10, color: '#060' }}>Saved.</span>}
+            </div>
+          </div>
+
           {/* Chat: user lines (right) + agent replies (left) + steps */}
           <div
             style={{
