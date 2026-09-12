@@ -7808,15 +7808,19 @@ class AgentManager {
   list() {
     return Array.from(this.agents.values()).map((m) => m.view);
   }
-  /** Set the polling interval of an existing agent. */
+  /** Set the polling interval (ms) of an existing agent. 0 disables polling. */
   setIntervalMs(id, intervalMs) {
     const managed = this.agents.get(id);
     if (!managed) return;
-    managed.template = { ...managed.template, defaultIntervalMs: intervalMs };
-    managed.view.intervalMs = intervalMs;
+    const ms = Math.max(0, Math.floor(intervalMs));
+    managed.template = { ...managed.template, defaultIntervalMs: ms };
+    managed.view.intervalMs = ms;
     if (managed.timer) {
       clearInterval(managed.timer);
-      managed.timer = setInterval(() => void this.runOnce(id), intervalMs);
+      managed.timer = null;
+    }
+    if (ms > 0 && managed.running) {
+      managed.timer = setInterval(() => void this.runOnce(id), ms);
     }
     this.persist(id);
   }
@@ -9259,6 +9263,10 @@ async function setupAgentIpc(options) {
   });
   ipcMain.handle("agent:stop", (_e, args) => {
     agentManager.stop(args.id);
+    return agentManager.get(args.id);
+  });
+  ipcMain.handle("agent:setIntervalMs", (_e, args) => {
+    agentManager.setIntervalMs(args.id, args.intervalMs);
     return agentManager.get(args.id);
   });
   ipcMain.handle("agent:remove", (_e, args) => {

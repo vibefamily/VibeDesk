@@ -97,8 +97,17 @@ const AgentCard: React.FC<{
   templates: AgentTemplateView[]
   onChanged: () => void
 }> = ({ agent, templates, onChanged }) => {
-  const { start, stop, remove, runOnce, chat, setDataSourceAuth, setWalletAuth, dataSources } =
-    useAgentStore()
+  const {
+    start,
+    stop,
+    remove,
+    runOnce,
+    chat,
+    setDataSourceAuth,
+    setWalletAuth,
+    setIntervalMs,
+    dataSources,
+  } = useAgentStore()
   const authorizedWallets = useWalletStore((s) => s.authorized)
   const walletMetas = useWalletStore((s) => s.wallets)
   const [expanded, setExpanded] = useState(false)
@@ -107,6 +116,8 @@ const AgentCard: React.FC<{
   const [dsSel, setDsSel] = useState<string[]>(agent.dataSources)
   const [waSel, setWaSel] = useState<string[]>(agent.walletAuths)
   const [authSaved, setAuthSaved] = useState(false)
+  const [intervalSec, setIntervalSec] = useState(String(Math.round(agent.intervalMs / 1000)))
+  const [intervalSaved, setIntervalSaved] = useState(false)
 
   const sendChat = async () => {
     const text = input.trim()
@@ -204,6 +215,57 @@ const AgentCard: React.FC<{
             padding: 6,
           }}
         >
+          {/* Run interval (M5-4) */}
+          <div
+            style={{
+              border: '2px inset',
+              borderColor: '#808080 #fff #fff #808080',
+              background: '#c0c0c0',
+              padding: 6,
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000', marginBottom: 4 }}>
+              Run interval (long-running agent)
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                value={intervalSec}
+                onChange={(e) => setIntervalSec(e.target.value)}
+                style={{
+                  width: 80,
+                  background: '#fff',
+                  color: '#000',
+                  border: '2px inset',
+                  borderColor: '#808080 #fff #fff #808080',
+                  padding: '2px 6px',
+                  fontSize: 11,
+                  fontFamily: 'inherit',
+                }}
+              />
+              <span style={{ fontSize: 11, color: '#000' }}>seconds (0 = off)</span>
+              <button
+                style={btnPrimary}
+                onClick={async () => {
+                  const sec = Math.max(0, Number(intervalSec) || 0)
+                  await setIntervalMs(agent.id, sec * 1000)
+                  setIntervalSaved(true)
+                  setTimeout(() => setIntervalSaved(false), 1500)
+                  onChanged()
+                }}
+              >
+                Apply
+              </button>
+              {intervalSaved && <span style={{ fontSize: 10, color: '#060' }}>Saved.</span>}
+            </div>
+            <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+              While running, the agent re-analyzes live multi-source data every interval.
+            </div>
+          </div>
+
           {/* Per-agent authorization: data sources + wallets (M5-2) */}
           <div
             style={{

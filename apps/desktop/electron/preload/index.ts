@@ -172,6 +172,8 @@ const vibeAPI = {
       ipcRenderer.invoke('agent:create', args),
     start: (args: { id: string }) => ipcRenderer.invoke('agent:start', args),
     stop: (args: { id: string }) => ipcRenderer.invoke('agent:stop', args),
+    setIntervalMs: (args: { id: string; intervalMs: number }) =>
+      ipcRenderer.invoke('agent:setIntervalMs', args),
     remove: (args: { id: string }) => ipcRenderer.invoke('agent:remove', args),
     runOnce: (args: { id: string }) => ipcRenderer.invoke('agent:runOnce', args),
     setLlmConfig: (config: {

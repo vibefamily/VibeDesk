@@ -37,6 +37,7 @@ const vibeAPI = {
     create: (args) => ipcRenderer.invoke("agent:create", args),
     start: (args) => ipcRenderer.invoke("agent:start", args),
     stop: (args) => ipcRenderer.invoke("agent:stop", args),
+    setIntervalMs: (args) => ipcRenderer.invoke("agent:setIntervalMs", args),
     remove: (args) => ipcRenderer.invoke("agent:remove", args),
     runOnce: (args) => ipcRenderer.invoke("agent:runOnce", args),
     setLlmConfig: (config) => ipcRenderer.invoke("agent:setLlmConfig", config),

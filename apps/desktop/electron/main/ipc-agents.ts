@@ -174,6 +174,11 @@ export async function setupAgentIpc(
     return agentManager!.get(args.id)
   })
 
+  ipcMain.handle('agent:setIntervalMs', (_e, args: { id: string; intervalMs: number }) => {
+    agentManager!.setIntervalMs(args.id, args.intervalMs)
+    return agentManager!.get(args.id)
+  })
+
   ipcMain.handle('agent:remove', (_e, args: { id: string }) => {
     agentManager!.remove(args.id)
     return agentManager!.list()

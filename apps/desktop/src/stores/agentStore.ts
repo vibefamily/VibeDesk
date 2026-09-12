@@ -64,6 +64,7 @@ interface AgentState {
   }) => Promise<void>
   start: (id: string) => Promise<void>
   stop: (id: string) => Promise<void>
+  setIntervalMs: (id: string, intervalMs: number) => Promise<void>
   remove: (id: string) => Promise<void>
   runOnce: (id: string) => Promise<void>
   chat: (id: string, text: string) => Promise<void>
@@ -122,6 +123,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   stop: async (id) => {
     await api.stop({ id })
+    await get().refresh()
+  },
+
+  setIntervalMs: async (id, intervalMs) => {
+    await api.setIntervalMs({ id, intervalMs })
     await get().refresh()
   },
 

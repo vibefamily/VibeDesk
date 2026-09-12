@@ -479,15 +479,19 @@ export class AgentManager {
     return Array.from(this.agents.values()).map((m) => m.view)
   }
 
-  /** Set the polling interval of an existing agent. */
+  /** Set the polling interval (ms) of an existing agent. 0 disables polling. */
   setIntervalMs(id: string, intervalMs: number): void {
     const managed = this.agents.get(id)
     if (!managed) return
-    managed.template = { ...managed.template, defaultIntervalMs: intervalMs }
-    managed.view.intervalMs = intervalMs
+    const ms = Math.max(0, Math.floor(intervalMs))
+    managed.template = { ...managed.template, defaultIntervalMs: ms }
+    managed.view.intervalMs = ms
     if (managed.timer) {
       clearInterval(managed.timer)
-      managed.timer = setInterval(() => void this.runOnce(id), intervalMs)
+      managed.timer = null
+    }
+    if (ms > 0 && managed.running) {
+      managed.timer = setInterval(() => void this.runOnce(id), ms)
     }
     this.persist(id)
   }
