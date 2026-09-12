@@ -1,5 +1,5 @@
 /**
- * Agents view - multi-agent control panel.
+ * Agents view - multi-agent control panel (Windows 95 style).
  *
  * Agents run in the main process (same security boundary as the wallet
  * vault). This view lists agent instances, lets you create / start /
@@ -13,55 +13,76 @@ import { useAgentStore } from '../stores/agentStore'
 import type { AgentInstanceView, AgentTemplateView } from '../stores/agentStore'
 
 const STATUS_COLOR: Record<string, string> = {
-  idle: '#8b949e',
-  running: '#58a6ff',
-  completed: '#3fb950',
-  error: '#f85149',
-  stopped: '#6e7681',
+  idle: '#000',
+  running: '#06f',
+  completed: '#060',
+  error: '#a00',
+  stopped: '#666',
 }
 
-const btnBase: React.CSSProperties = {
-  padding: '6px 12px',
-  borderRadius: '6px',
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-bg-tertiary)',
-  color: 'var(--color-text-primary)',
-  fontSize: 'var(--font-sm)',
+const btn: React.CSSProperties = {
+  padding: '4px 12px',
+  background: '#c0c0c0',
+  border: '2px outset',
+  borderColor: '#fff #808080 #808080 #fff',
+  color: '#000',
+  fontSize: 11,
   cursor: 'pointer',
-  fontWeight: 500,
+  fontFamily: 'inherit',
 }
 
 const btnPrimary: React.CSSProperties = {
-  ...btnBase,
-  background: 'var(--color-accent)',
-  borderColor: 'var(--color-accent)',
-  color: '#fff',
+  ...btn,
+  fontWeight: 700,
 }
 
 const btnDanger: React.CSSProperties = {
-  ...btnBase,
-  color: 'var(--color-danger)',
-  borderColor: 'rgba(248,81,73,0.4)',
+  ...btn,
+  color: '#a00',
 }
 
-const inputStyle: React.CSSProperties = {
+const input: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
-  padding: '4px 8px',
-  borderRadius: 0,
+  padding: '4px 6px',
+  fontSize: 12,
   border: '2px inset',
   borderColor: '#808080 #fff #fff #808080',
-  background: 'var(--color-bg-tertiary)',
-  color: 'var(--color-text-primary)',
-  fontSize: 12,
+  background: '#fff',
+  color: '#000',
+  caretColor: '#000',
 }
 
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-bg-secondary)',
+const label: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  color: '#000',
+  marginBottom: 3,
+}
+
+const card: React.CSSProperties = {
+  background: '#c0c0c0',
   border: '2px outset',
   borderColor: '#fff #808080 #808080 #fff',
-  padding: 10,
+  padding: 8,
 }
+
+/** Small Windows-95 style status chip (inset, coloured text). */
+const Chip: React.FC<{ children: React.ReactNode; color?: string }> = ({ children, color }) => (
+  <span
+    style={{
+      fontSize: 10,
+      border: '1px inset',
+      borderColor: '#808080 #fff #fff #808080',
+      padding: '1px 6px',
+      background: '#c0c0c0',
+      color: color ?? '#000',
+      whiteSpace: 'nowrap',
+    }}
+  >
+    {children}
+  </span>
+)
 
 function fmtTime(ts: number | null): string {
   if (!ts) return 'never'
@@ -100,43 +121,23 @@ const AgentCard: React.FC<{
   const lastMsgs = expanded ? messages : messages.slice(-3)
 
   return (
-    <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--font-xl)' }}>{agent.icon}</span>
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 16 }}>{agent.icon}</span>
         <div>
-          <h3 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>{agent.name}</h3>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-xs)' }}>
+          <h3 style={{ margin: 0, fontSize: 14, color: '#000' }}>{agent.name}</h3>
+          <span style={{ color: '#000', fontSize: 10 }}>
             {template?.name ?? agent.templateId} · {agent.symbols.join(', ')} · every{' '}
             {Math.round(agent.intervalMs / 1000)}s
           </span>
         </div>
-        <span
-          style={{
-            fontSize: 'var(--font-xs)',
-            padding: '2px 10px',
-            borderRadius: 999,
-            background: `${STATUS_COLOR[agent.status] ?? '#8b949e'}22`,
-            color: STATUS_COLOR[agent.status] ?? '#8b949e',
-            border: `1px solid ${STATUS_COLOR[agent.status] ?? '#8b949e'}55`,
-          }}
-        >
-          ● {agent.status}
-        </span>
-        <span
-          style={{
-            fontSize: 'var(--font-xs)',
-            padding: '2px 10px',
-            borderRadius: 999,
-            background:
-              agent.mode === 'llm' ? 'rgba(210,153,34,0.15)' : 'rgba(139,148,158,0.15)',
-            color: agent.mode === 'llm' ? 'var(--color-warning)' : 'var(--color-text-secondary)',
-          }}
-        >
+        <Chip color={STATUS_COLOR[agent.status] ?? '#000'}>{agent.status}</Chip>
+        <Chip color={agent.mode === 'llm' ? '#960' : '#666'}>
           {agent.mode === 'llm' ? 'LLM' : 'Rule'}
-        </span>
+        </Chip>
         <span style={{ flex: 1 }} />
         {running ? (
-          <button style={btnBase} onClick={() => void stop(agent.id).then(onChanged)}>
+          <button style={btn} onClick={() => void stop(agent.id).then(onChanged)}>
             Stop
           </button>
         ) : (
@@ -144,13 +145,13 @@ const AgentCard: React.FC<{
             Start
           </button>
         )}
-        <button style={btnBase} onClick={() => void runOnce(agent.id).then(onChanged)}>
+        <button style={btn} onClick={() => void runOnce(agent.id).then(onChanged)}>
           Run now
         </button>
         <button style={btnDanger} onClick={() => void remove(agent.id).then(onChanged)}>
           Remove
         </button>
-        <button style={btnBase} onClick={() => setExpanded(!expanded)}>
+        <button style={btn} onClick={() => setExpanded(!expanded)}>
           {expanded ? 'Collapse' : `Log (${messages.length})`}
         </button>
       </div>
@@ -158,16 +159,18 @@ const AgentCard: React.FC<{
       {agent.lastMessage && !expanded && (
         <pre
           style={{
-            margin: 'var(--space-md) 0 0',
-            padding: 'var(--space-md)',
-            background: 'var(--color-bg-tertiary)',
-            borderRadius: 8,
-            fontSize: 'var(--font-xs)',
-            color: 'var(--color-text-secondary)',
+            margin: '8px 0 0',
+            padding: 6,
+            background: '#fff',
+            border: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            fontSize: 11,
+            color: '#000',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             maxHeight: 96,
             overflow: 'auto',
+            fontFamily: 'inherit',
           }}
         >
           {agent.lastMessage}
@@ -180,7 +183,7 @@ const AgentCard: React.FC<{
             marginTop: 8,
             border: '2px inset',
             borderColor: '#808080 #fff #fff #808080',
-            background: '#fff',
+            background: '#c0c0c0',
             padding: 6,
           }}
         >
@@ -195,7 +198,7 @@ const AgentCard: React.FC<{
             }}
           >
             {lastMsgs.length === 0 && (
-              <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 11 }}>
+              <p style={{ margin: 0, color: '#666', fontSize: 11 }}>
                 No activity yet. Start the agent, press "Run now", or send a message below.
               </p>
             )}
@@ -215,6 +218,7 @@ const AgentCard: React.FC<{
                         borderColor: '#fff #808080 #808080 #fff',
                         padding: '4px 8px',
                         fontSize: 11,
+                        color: '#000',
                         whiteSpace: 'pre-wrap',
                         wordBreak: 'break-word',
                       }}
@@ -248,6 +252,7 @@ const AgentCard: React.FC<{
                       borderColor: '#fff #808080 #808080 #fff',
                       padding: '4px 8px',
                       fontSize: 11,
+                      color: '#000',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                     }}
@@ -285,6 +290,7 @@ const AgentCard: React.FC<{
                 borderColor: '#808080 #fff #fff #808080',
                 background: agent.mode === 'llm' ? '#fff' : '#e8e8e8',
                 color: agent.mode === 'llm' ? '#000' : '#999',
+                caretColor: '#000',
               }}
             />
             <button
@@ -349,27 +355,13 @@ const Agents: React.FC = () => {
   }, [templateId, name, symbols, create])
 
   return (
-    <div style={{ padding: 10, maxWidth: 900 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0 }}>Agents</h2>
-        <span
-          style={{
-            fontSize: 'var(--font-xs)',
-            padding: '3px 10px',
-            borderRadius: 999,
-            background:
-              mode === 'llm' ? 'rgba(210,153,34,0.15)' : 'rgba(139,148,158,0.15)',
-            color: mode === 'llm' ? 'var(--color-warning)' : 'var(--color-text-secondary)',
-          }}
-        >
+    <div style={{ padding: 10, maxWidth: 900, background: '#c0c0c0', color: '#000' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 16, color: '#000' }}>Agents</h2>
+        <Chip color={mode === 'llm' ? '#960' : '#666'}>
           {mode === 'llm' ? '⚡ LLM mode (OpenAI-compatible)' : 'Rule mode (no LLM key)'}
-        </span>
-        <span
-          style={{
-            fontSize: 'var(--font-xs)',
-            color: 'var(--color-text-muted)',
-          }}
-        >
+        </Chip>
+        <span style={{ fontSize: 11, color: '#000' }}>
           {agents.length} instance{agents.length === 1 ? '' : 's'} running in the main process
         </span>
         <span style={{ flex: 1 }} />
@@ -380,12 +372,11 @@ const Agents: React.FC = () => {
           style={{
             marginTop: 8,
             padding: '6px 10px',
-            borderRadius: 0,
-            background: 'rgba(210,153,34,0.08)',
             border: '2px inset',
             borderColor: '#808080 #fff #fff #808080',
-            color: 'var(--color-warning)',
-            fontSize: 'var(--font-sm)',
+            background: '#c0c0c0',
+            color: '#960',
+            fontSize: 11,
           }}
         >
           No LLM API key configured - agents run in deterministic rule mode on live multi-source
@@ -398,11 +389,11 @@ const Agents: React.FC = () => {
           style={{
             marginTop: 8,
             padding: '6px 10px',
-            borderRadius: 0,
-            background: 'rgba(248,81,73,0.1)',
-            border: '1px solid rgba(248,81,73,0.3)',
-            color: 'var(--color-danger)',
-            fontSize: 'var(--font-sm)',
+            border: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            background: '#c0c0c0',
+            color: '#a00',
+            fontSize: 11,
           }}
         >
           {error}
@@ -410,24 +401,18 @@ const Agents: React.FC = () => {
       )}
 
       {/* Create agent */}
-      <div style={{ ...cardStyle, marginTop: 'var(--space-lg)' }}>
-        <h3 style={{ marginTop: 0 }}>Create an agent</h3>
+      <div style={{ ...card, marginTop: 12 }}>
+        <h3 style={{ marginTop: 0, fontSize: 14, color: '#000' }}>Create an agent</h3>
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 12,
+            gap: 8,
           }}
         >
           <div>
-            <label style={{ display: 'block', fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)', marginBottom: 4 }}>
-              Template
-            </label>
-            <select
-              style={inputStyle}
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value)}
-            >
+            <label style={label}>Template</label>
+            <select style={input} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
               <option value="">Select…</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -437,16 +422,17 @@ const Agents: React.FC = () => {
             </select>
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)', marginBottom: 4 }}>
-              Name (optional)
-            </label>
-            <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
+            <label style={label}>Name (optional)</label>
+            <input style={input} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)', marginBottom: 4 }}>
-              Symbols (comma-separated)
-            </label>
-            <input style={inputStyle} value={symbols} onChange={(e) => setSymbols(e.target.value)} placeholder="TSLA, NVDA" />
+            <label style={label}>Symbols (comma-separated)</label>
+            <input
+              style={input}
+              value={symbols}
+              onChange={(e) => setSymbols(e.target.value)}
+              placeholder="TSLA, NVDA"
+            />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <button style={btnPrimary} onClick={() => void onSubmit()} disabled={!templateId || loading}>
@@ -455,16 +441,16 @@ const Agents: React.FC = () => {
           </div>
         </div>
         {templateId && (
-          <p style={{ margin: 'var(--space-md) 0 0', color: 'var(--color-text-secondary)', fontSize: 'var(--font-xs)' }}>
+          <p style={{ margin: '8px 0 0', color: '#000', fontSize: 11 }}>
             {templates.find((t) => t.id === templateId)?.description}
           </p>
         )}
       </div>
 
       {/* Agent list */}
-      <div style={{ display: 'grid', gap: 'var(--space-lg)', marginTop: 'var(--space-lg)' }}>
+      <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {agents.length === 0 && !loading && (
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-sm)' }}>
+          <p style={{ fontSize: 11, color: '#000' }}>
             No agents yet. Pick a template above to create your first one.
           </p>
         )}

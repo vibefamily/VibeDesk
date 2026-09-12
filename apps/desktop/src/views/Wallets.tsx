@@ -1,5 +1,5 @@
 /**
- * Wallets view - local-first multi-wallet vault.
+ * Wallets view - local-first multi-wallet vault (Windows 95 style).
  *
  * Security model:
  * - The vault lives in the Electron main process; the renderer only sees
@@ -8,78 +8,80 @@
  *   requires the vault password again (MetaMask-style).
  * - Agent access is granted per wallet in memory only and can be
  *   revoked at any time.
+ * - Create / import is available both on an empty vault and via
+ *   "Add wallet" once wallets exist.
  */
 
 import React, { useCallback, useEffect, useState } from 'react'
 import type { WalletMeta } from '../types/wallet'
 import { useWalletStore } from '../stores/walletStore'
 
-// --- Small UI primitives ----------------------------------------------------
+// --- Windows 95 primitives --------------------------------------------------
+
+const btn: React.CSSProperties = {
+  padding: '4px 12px',
+  background: '#c0c0c0',
+  border: '2px outset',
+  borderColor: '#fff #808080 #808080 #fff',
+  color: '#000',
+  fontSize: 11,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+}
+
+const btnPrimary: React.CSSProperties = {
+  ...btn,
+  fontWeight: 700,
+}
+
+const btnDanger: React.CSSProperties = {
+  ...btn,
+  color: '#a00',
+}
+
+const input: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '4px 6px',
+  fontSize: 12,
+  border: '2px inset',
+  borderColor: '#808080 #fff #fff #808080',
+  background: '#fff',
+  color: '#000',
+  caretColor: '#000',
+}
+
+const label: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  color: '#000',
+  marginBottom: 3,
+}
+
+const card: React.CSSProperties = {
+  background: '#c0c0c0',
+  border: '2px outset',
+  borderColor: '#fff #808080 #808080 #fff',
+  padding: 10,
+}
 
 function shortAddr(address: string): string {
   if (address.length <= 14) return address
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-const btnBase: React.CSSProperties = {
-  padding: '6px 12px',
-  borderRadius: '6px',
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-bg-tertiary)',
-  color: 'var(--color-text-primary)',
-  fontSize: 'var(--font-sm)',
-  cursor: 'pointer',
-  fontWeight: 500,
-}
-
-const btnPrimary: React.CSSProperties = {
-  ...btnBase,
-  background: 'var(--color-accent)',
-  borderColor: 'var(--color-accent)',
-  color: '#fff',
-}
-
-const btnDanger: React.CSSProperties = {
-  ...btnBase,
-  color: 'var(--color-danger)',
-  borderColor: 'rgba(248, 81, 73, 0.4)',
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '8px 10px',
-  borderRadius: '6px',
-  border: '1px solid var(--color-border)',
-  background: 'var(--color-bg-tertiary)',
-  color: 'var(--color-text-primary)',
-  fontSize: 'var(--font-md)',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 'var(--font-sm)',
-  color: 'var(--color-text-secondary)',
-  marginBottom: 4,
-}
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-bg-secondary)',
-  border: '1px solid var(--color-border)',
-  borderRadius: '12px',
-  padding: 'var(--space-lg)',
-}
-
-const Modal: React.FC<{
+/** Windows 95 dialog: blue title bar + grey body. */
+const Win95Modal: React.FC<{
   title: string
   onClose: () => void
   children: React.ReactNode
-}> = ({ title, onClose, children }) => (
+  width?: number
+}> = ({ title, onClose, children, width = 520 }) => (
   <div
     style={{
       position: 'fixed',
       inset: 0,
-      background: 'rgba(1, 4, 9, 0.7)',
+      background: 'rgba(0,0,0,0.45)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -88,23 +90,46 @@ const Modal: React.FC<{
     onClick={onClose}
   >
     <div
-      style={{ ...cardStyle, width: 480, maxWidth: '92vw' }}
+      style={{
+        width,
+        maxWidth: '94vw',
+        background: '#c0c0c0',
+        border: '2px outset',
+        borderColor: '#fff #404040 #404040 #fff',
+        boxShadow: '4px 4px 8px rgba(0,0,0,0.4)',
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       <div
         style={{
+          background: 'linear-gradient(90deg, #000080, #1084d0)',
+          padding: '2px 3px',
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 'var(--space-lg)',
+          justifyContent: 'space-between',
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>{title}</h3>
-        <button style={{ ...btnBase, padding: '2px 10px' }} onClick={onClose}>
+        <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{title}</span>
+        <button
+          style={{
+            width: 16,
+            height: 14,
+            padding: 0,
+            fontSize: 9,
+            fontWeight: 700,
+            lineHeight: '12px',
+            background: '#c0c0c0',
+            border: '2px outset',
+            borderColor: '#fff #808080 #808080 #fff',
+            cursor: 'pointer',
+          }}
+          onClick={onClose}
+          title="Close"
+        >
           ✕
         </button>
       </div>
-      {children}
+      <div style={{ padding: 10 }}>{children}</div>
     </div>
   </div>
 )
@@ -143,33 +168,27 @@ const SecretGate: React.FC<{
   }
 
   return (
-    <Modal title={title} onClose={onClose}>
-      <p style={{ marginTop: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-sm)' }}>
-        {hint}
-      </p>
+    <Win95Modal title={title} onClose={onClose} width={460}>
+      <p style={{ marginTop: 0, fontSize: 11, color: '#000' }}>{hint}</p>
       <input
         type="password"
         placeholder="Vault password"
-        style={inputStyle}
+        style={input}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && void submit()}
         autoFocus
       />
-      {error && (
-        <p style={{ color: 'var(--color-danger)', fontSize: 'var(--font-sm)', margin: '8px 0 0' }}>
-          {error}
-        </p>
-      )}
-      <div style={{ display: 'flex', gap: 8, marginTop: 'var(--space-lg)' }}>
+      {error && <p style={{ color: '#a00', fontSize: 11, margin: '8px 0 0' }}>{error}</p>}
+      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
         <button style={btnPrimary} onClick={() => void submit()} disabled={busy || !password}>
           {submitLabel}
         </button>
-        <button style={btnBase} onClick={onClose}>
+        <button style={btn} onClick={onClose}>
           Cancel
         </button>
       </div>
-    </Modal>
+    </Win95Modal>
   )
 }
 
@@ -186,35 +205,36 @@ const SecretReveal: React.FC<{ result: SecretResult; onClose: () => void }> = ({
   }
 
   return (
-    <Modal title={result.kind === 'mnemonic' ? 'Recovery phrase' : 'Private key'} onClose={onClose}>
+    <Win95Modal title={result.kind === 'mnemonic' ? 'Recovery phrase' : 'Private key'} onClose={onClose}>
       <div
         style={{
-          background: 'var(--color-bg-tertiary)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 8,
-          padding: 'var(--space-lg)',
+          background: '#fff',
+          border: '2px inset',
+          borderColor: '#808080 #fff #fff #808080',
+          padding: 8,
           fontFamily: 'monospace',
-          fontSize: 'var(--font-sm)',
+          fontSize: 12,
           wordBreak: 'break-all',
           lineHeight: 1.7,
           maxHeight: 220,
           overflow: 'auto',
+          color: '#000',
         }}
       >
         {result.value}
       </div>
-      <p style={{ color: 'var(--color-warning)', fontSize: 'var(--font-sm)' }}>
+      <p style={{ color: '#a00', fontSize: 11 }}>
         Anyone with this can control your funds. Store it offline and never screenshot it.
       </p>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
         <button style={btnPrimary} onClick={copy}>
           {copied ? 'Copied' : 'Copy'}
         </button>
-        <button style={btnBase} onClick={onClose}>
+        <button style={btn} onClick={onClose}>
           Close
         </button>
       </div>
-    </Modal>
+    </Win95Modal>
   )
 }
 
@@ -280,31 +300,27 @@ const AccountRow: React.FC<AccountRowProps> = ({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
-        padding: '8px 4px',
-        borderTop: '1px solid var(--color-border-light)',
+        gap: 8,
+        padding: '6px 2px',
+        borderTop: '1px solid #808080',
         flexWrap: 'wrap',
       }}
     >
-      <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-xs)', width: 28 }}>
-        {label}
-      </span>
-      <code style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-sm)' }}>
-        {shortAddr(address)}
-      </code>
+      <span style={{ color: '#000', fontSize: 11, width: 26 }}>{label}</span>
+      <code style={{ color: '#000', fontSize: 11 }}>{shortAddr(address)}</code>
       <span style={{ flex: 1 }} />
-      <button style={btnBase} onClick={copy}>
+      <button style={btn} onClick={copy}>
         {copied ? '✓' : 'Copy'}
       </button>
-      <button style={btnBase} onClick={() => setGate('key')}>
+      <button style={btn} onClick={() => setGate('key')}>
         Private key
       </button>
-      <button style={btnBase} onClick={() => setGate('keystore')}>
+      <button style={btn} onClick={() => setGate('keystore')}>
         Keystore
       </button>
       {authorized ? (
         <button
-          style={{ ...btnBase, color: 'var(--color-success)', borderColor: 'rgba(63,185,80,0.4)' }}
+          style={{ ...btn, color: '#060' }}
           onClick={() => {
             void revokeAgent({ walletId: wallet.id, index })
             onAuthChanged()
@@ -313,7 +329,7 @@ const AccountRow: React.FC<AccountRowProps> = ({
           Agent ✓
         </button>
       ) : (
-        <button style={btnBase} onClick={() => setGate('agent')}>
+        <button style={btn} onClick={() => setGate('agent')}>
           Grant Agent
         </button>
       )}
@@ -372,32 +388,33 @@ const HdWalletCard: React.FC<{ wallet: WalletMeta; onAuthChanged: () => void }> 
   }
 
   return (
-    <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>{wallet.name}</h3>
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0, fontSize: 14, color: '#000' }}>{wallet.name}</h3>
         <span
           style={{
-            fontSize: 'var(--font-xs)',
-            padding: '2px 8px',
-            borderRadius: 999,
-            background: 'rgba(88,166,255,0.15)',
-            color: 'var(--color-accent)',
+            fontSize: 10,
+            border: '1px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            padding: '1px 6px',
+            background: '#c0c0c0',
+            color: '#000',
           }}
         >
           HD · {accounts.length} {accounts.length === 1 ? 'account' : 'accounts'}
         </span>
         <span style={{ flex: 1 }} />
-        <button style={btnBase} onClick={() => setGate('mnemonic')}>
+        <button style={btn} onClick={() => setGate('mnemonic')}>
           Recovery phrase
         </button>
-        <button style={btnBase} onClick={() => setGate('derive')}>
+        <button style={btn} onClick={() => setGate('derive')}>
           + Add account
         </button>
         <button style={btnDanger} onClick={() => setGate('remove')}>
           Remove
         </button>
       </div>
-      <div style={{ marginTop: 'var(--space-sm)' }}>
+      <div style={{ marginTop: 6 }}>
         {accounts.map((acc) => (
           <AccountRow
             key={`${wallet.id}:${acc.index}`}
@@ -441,16 +458,17 @@ const KeyWalletCard: React.FC<{ wallet: WalletMeta; onAuthChanged: () => void }>
   onAuthChanged,
 }) => {
   return (
-    <div style={cardStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>{wallet.name}</h3>
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0, fontSize: 14, color: '#000' }}>{wallet.name}</h3>
         <span
           style={{
-            fontSize: 'var(--font-xs)',
-            padding: '2px 8px',
-            borderRadius: 999,
-            background: 'rgba(210,153,34,0.15)',
-            color: 'var(--color-warning)',
+            fontSize: 10,
+            border: '1px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            padding: '1px 6px',
+            background: '#c0c0c0',
+            color: '#000',
           }}
         >
           Imported key
@@ -477,9 +495,12 @@ const KeyWalletCard: React.FC<{ wallet: WalletMeta; onAuthChanged: () => void }>
   )
 }
 
-// --- Empty state: create / import -------------------------------------------
+// --- Create / import form (shared by empty state and Add wallet) -------------
 
-const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
+const AddWalletForm: React.FC<{ onDone: () => void; compact?: boolean }> = ({
+  onDone,
+  compact,
+}) => {
   const createHd = useWalletStore((s) => s.createHd)
   const importHd = useWalletStore((s) => s.importHd)
   const importPrivateKey = useWalletStore((s) => s.importPrivateKey)
@@ -531,7 +552,7 @@ const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
       })
       setCreatedMnemonic(result.mnemonic)
       reset()
-      onChanged()
+      onDone()
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -566,7 +587,7 @@ const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
         })
       }
       reset()
-      onChanged()
+      onDone()
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -576,134 +597,124 @@ const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 'var(--space-lg)' }}>
-        <button
-          style={mode === 'create' ? btnPrimary : btnBase}
-          onClick={() => setMode('create')}
-        >
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        <button style={mode === 'create' ? btnPrimary : btn} onClick={() => setMode('create')}>
           Create HD wallet
         </button>
-        <button
-          style={mode === 'import' ? btnPrimary : btnBase}
-          onClick={() => setMode('import')}
-        >
+        <button style={mode === 'import' ? btnPrimary : btn} onClick={() => setMode('import')}>
           Import
         </button>
       </div>
 
       {mode === 'create' ? (
-        <div style={{ ...cardStyle, maxWidth: 520 }}>
-          <h3 style={{ marginTop: 0 }}>Create a new HD wallet</h3>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-sm)' }}>
+        <div style={{ maxWidth: 520 }}>
+          <p style={{ marginTop: 0, fontSize: 11, color: '#000' }}>
             One recovery phrase generates as many accounts as you need. An optional passphrase
-            acts as an extra salt: a different passphrase produces a completely different set
-            of accounts.
+            acts as an extra salt: a different passphrase produces a completely different set of
+            accounts.
           </p>
-          <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
             <div>
-              <label style={labelStyle}>Name</label>
-              <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
+              <label style={label}>Name</label>
+              <input style={input} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
-              <label style={labelStyle}>Vault password</label>
+              <label style={label}>Vault password</label>
               <input
                 type="password"
-                style={inputStyle}
+                style={input}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <div>
-              <label style={labelStyle}>Confirm password</label>
+              <label style={label}>Confirm password</label>
               <input
                 type="password"
-                style={inputStyle}
+                style={input}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               <div>
-                <label style={labelStyle}>Passphrase (optional)</label>
+                <label style={label}>Passphrase (optional)</label>
                 <input
-                  style={inputStyle}
+                  style={input}
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
                 />
               </div>
               <div>
-                <label style={labelStyle}>Accounts to generate</label>
+                <label style={label}>Accounts to generate</label>
                 <input
                   type="number"
                   min={1}
                   max={50}
-                  style={inputStyle}
+                  style={input}
                   value={accountCount}
                   onChange={(e) => setAccountCount(Math.max(1, Number(e.target.value)))}
                 />
               </div>
             </div>
-            {error && (
-              <p style={{ color: 'var(--color-danger)', fontSize: 'var(--font-sm)', margin: 0 }}>
-                {error}
-              </p>
-            )}
-            <button style={btnPrimary} onClick={() => void submitCreate()} disabled={busy}>
-              {busy ? 'Creating…' : 'Create wallet'}
-            </button>
+            {error && <p style={{ color: '#a00', fontSize: 11, margin: 0 }}>{error}</p>}
+            <div>
+              <button style={btnPrimary} onClick={() => void submitCreate()} disabled={busy}>
+                {busy ? 'Creating…' : 'Create wallet'}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
-        <div style={{ ...cardStyle, maxWidth: 520 }}>
-          <h3 style={{ marginTop: 0 }}>Import a wallet</h3>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 'var(--space-lg)' }}>
+        <div style={{ maxWidth: 520 }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             {(
               [
                 ['mnemonic', 'Mnemonic'],
                 ['key', 'Private key'],
                 ['keystore', 'Keystore JSON'],
               ] as const
-            ).map(([id, label]) => (
+            ).map(([id, lbl]) => (
               <button
                 key={id}
-                style={importTab === id ? btnPrimary : btnBase}
+                style={importTab === id ? btnPrimary : btn}
                 onClick={() => setImportTab(id)}
               >
-                {label}
+                {lbl}
               </button>
             ))}
           </div>
-          <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
             <div>
-              <label style={labelStyle}>Name</label>
-              <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} />
+              <label style={label}>Name</label>
+              <input style={input} value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             {importTab === 'mnemonic' && (
               <>
                 <div>
-                  <label style={labelStyle}>Recovery phrase</label>
+                  <label style={label}>Recovery phrase</label>
                   <textarea
-                    style={{ ...inputStyle, minHeight: 80, fontFamily: 'monospace' }}
+                    style={{ ...input, minHeight: 70, fontFamily: 'monospace' }}
                     value={mnemonic}
                     onChange={(e) => setMnemonic(e.target.value)}
                   />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   <div>
-                    <label style={labelStyle}>Passphrase (optional)</label>
+                    <label style={label}>Passphrase (optional)</label>
                     <input
-                      style={inputStyle}
+                      style={input}
                       value={passphrase}
                       onChange={(e) => setPassphrase(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label style={labelStyle}>Accounts to generate</label>
+                    <label style={label}>Accounts to generate</label>
                     <input
                       type="number"
                       min={1}
                       max={50}
-                      style={inputStyle}
+                      style={input}
                       value={accountCount}
                       onChange={(e) => setAccountCount(Math.max(1, Number(e.target.value)))}
                     />
@@ -713,9 +724,9 @@ const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
             )}
             {importTab === 'key' && (
               <div>
-                <label style={labelStyle}>Private key (hex, with or without 0x)</label>
+                <label style={label}>Private key (hex, with or without 0x)</label>
                 <input
-                  style={{ ...inputStyle, fontFamily: 'monospace' }}
+                  style={{ ...input, fontFamily: 'monospace' }}
                   value={privateKey}
                   onChange={(e) => setPrivateKey(e.target.value)}
                 />
@@ -724,19 +735,19 @@ const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
             {importTab === 'keystore' && (
               <>
                 <div>
-                  <label style={labelStyle}>Keystore JSON</label>
+                  <label style={label}>Keystore JSON</label>
                   <textarea
-                    style={{ ...inputStyle, minHeight: 140, fontFamily: 'monospace' }}
+                    style={{ ...input, minHeight: 120, fontFamily: 'monospace' }}
                     value={keystoreJson}
                     onChange={(e) => setKeystoreJson(e.target.value)}
                     placeholder='{"address":"0x…","crypto":{…},"version":3}'
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>Keystore password</label>
+                  <label style={label}>Keystore password</label>
                   <input
                     type="password"
-                    style={inputStyle}
+                    style={input}
                     value={keystorePw}
                     onChange={(e) => setKeystorePw(e.target.value)}
                   />
@@ -744,60 +755,73 @@ const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
               </>
             )}
             <div>
-              <label style={labelStyle}>Vault password (to protect this wallet locally)</label>
+              <label style={label}>Vault password (to protect this wallet locally)</label>
               <input
                 type="password"
-                style={inputStyle}
+                style={input}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            {error && (
-              <p style={{ color: 'var(--color-danger)', fontSize: 'var(--font-sm)', margin: 0 }}>
-                {error}
-              </p>
-            )}
-            <button style={btnPrimary} onClick={() => void submitImport()} disabled={busy}>
-              {busy ? 'Importing…' : 'Import wallet'}
-            </button>
+            {error && <p style={{ color: '#a00', fontSize: 11, margin: 0 }}>{error}</p>}
+            <div>
+              <button style={btnPrimary} onClick={() => void submitImport()} disabled={busy}>
+                {busy ? 'Importing…' : 'Import wallet'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {createdMnemonic && (
-        <Modal title="Your recovery phrase - write it down" onClose={() => setCreatedMnemonic(null)}>
+        <Win95Modal title="Your recovery phrase - write it down" onClose={() => setCreatedMnemonic(null)}>
           <div
             style={{
-              background: 'var(--color-bg-tertiary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 8,
-              padding: 'var(--space-lg)',
+              background: '#fff',
+              border: '2px inset',
+              borderColor: '#808080 #fff #fff #808080',
+              padding: 8,
               fontFamily: 'monospace',
-              fontSize: 'var(--font-sm)',
+              fontSize: 12,
               lineHeight: 1.8,
               display: 'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
               gap: '4px 12px',
+              color: '#000',
+              maxHeight: 260,
+              overflow: 'auto',
             }}
           >
             {createdMnemonic.split(' ').map((word, i) => (
               <div key={word + i}>
-                <span style={{ color: 'var(--color-text-muted)' }}>{i + 1}.</span> {word}
+                <span style={{ color: '#666' }}>{i + 1}.</span> {word}
               </div>
             ))}
           </div>
-          <p style={{ color: 'var(--color-warning)', fontSize: 'var(--font-sm)' }}>
+          <p style={{ color: '#a00', fontSize: 11 }}>
             This is the only time the full phrase is shown. Losing it means losing access to
             every account derived from it.
           </p>
           <button style={btnPrimary} onClick={() => setCreatedMnemonic(null)}>
             I saved it
           </button>
-        </Modal>
+        </Win95Modal>
       )}
     </div>
   )
 }
+
+// --- Empty state ------------------------------------------------------------
+
+const EmptyState: React.FC<{ onChanged: () => void }> = ({ onChanged }) => (
+  <div>
+    <p style={{ fontSize: 11, color: '#000', marginTop: 0 }}>
+      Your vault is empty. Create an HD wallet from a fresh recovery phrase, or import an
+      existing one. Secrets are encrypted locally and never leave this machine.
+    </p>
+    <AddWalletForm onDone={onChanged} />
+  </div>
+)
 
 // --- Main view --------------------------------------------------------------
 
@@ -805,6 +829,7 @@ const Wallets: React.FC = () => {
   const { unlocked, empty, wallets, authorized, loading, error, refresh, unlock, lock, revokeAll } =
     useWalletStore()
   const [unlockOpen, setUnlockOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
     void refresh()
@@ -815,40 +840,45 @@ const Wallets: React.FC = () => {
   }, [refresh])
 
   return (
-    <div style={{ padding: 'var(--space-xl)', maxWidth: 860 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0 }}>Wallets</h2>
+    <div style={{ padding: 10, maxWidth: 900, background: '#c0c0c0', color: '#000' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, fontSize: 16, color: '#000' }}>Wallets</h2>
         <span
           style={{
-            fontSize: 'var(--font-xs)',
-            padding: '3px 10px',
-            borderRadius: 999,
-            background: unlocked
-              ? 'rgba(63,185,80,0.15)'
-              : 'rgba(139,148,158,0.15)',
-            color: unlocked ? 'var(--color-success)' : 'var(--color-text-secondary)',
+            fontSize: 10,
+            border: '1px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            padding: '1px 6px',
+            background: unlocked ? '#c0c0c0' : '#c0c0c0',
+            color: unlocked ? '#060' : '#000',
           }}
         >
           {unlocked ? '● Unlocked' : '○ Locked'}
         </span>
         <span
           style={{
-            fontSize: 'var(--font-xs)',
-            padding: '3px 10px',
-            borderRadius: 999,
-            background: 'rgba(210,153,34,0.12)',
-            color: 'var(--color-warning)',
+            fontSize: 10,
+            border: '1px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            padding: '1px 6px',
+            background: '#c0c0c0',
+            color: '#000',
           }}
         >
           {authorized.length} agent auth{authorized.length === 1 ? '' : 's'}
         </span>
         <span style={{ flex: 1 }} />
+        {!empty && (
+          <button style={btnPrimary} onClick={() => setAddOpen(true)}>
+            + Add wallet
+          </button>
+        )}
         {unlocked ? (
           <>
-            <button style={btnBase} onClick={() => void lock()}>
+            <button style={btn} onClick={() => void lock()}>
               Lock vault
             </button>
-            <button style={btnBase} onClick={() => void revokeAll()} disabled={authorized.length === 0}>
+            <button style={btn} onClick={() => void revokeAll()} disabled={authorized.length === 0}>
               Revoke all agents
             </button>
           </>
@@ -862,13 +892,13 @@ const Wallets: React.FC = () => {
       {error && (
         <div
           style={{
-            marginTop: 'var(--space-lg)',
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: 'rgba(248,81,73,0.1)',
-            border: '1px solid rgba(248,81,73,0.3)',
-            color: 'var(--color-danger)',
-            fontSize: 'var(--font-sm)',
+            marginTop: 10,
+            padding: '6px 10px',
+            border: '2px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            background: '#c0c0c0',
+            color: '#a00',
+            fontSize: 11,
           }}
         >
           {error}
@@ -876,20 +906,14 @@ const Wallets: React.FC = () => {
       )}
 
       {loading && !empty && (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-sm)' }}>Loading…</p>
+        <p style={{ fontSize: 11, color: '#000' }}>Loading…</p>
       )}
 
-      <div style={{ marginTop: 'var(--space-xl)' }}>
+      <div style={{ marginTop: 12 }}>
         {empty ? (
-          <>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-sm)' }}>
-              Your vault is empty. Create an HD wallet from a fresh recovery phrase, or import
-              an existing one. Secrets are encrypted locally and never leave this machine.
-            </p>
-            <EmptyState onChanged={onAuthChanged} />
-          </>
+          <EmptyState onChanged={onAuthChanged} />
         ) : (
-          <div style={{ display: 'grid', gap: 'var(--space-lg)' }}>
+          <div style={{ display: 'grid', gap: 10 }}>
             {wallets.map((wallet) =>
               wallet.kind === 'hd' ? (
                 <HdWalletCard key={wallet.id} wallet={wallet} onAuthChanged={onAuthChanged} />
@@ -912,6 +936,12 @@ const Wallets: React.FC = () => {
           }}
           onClose={() => setUnlockOpen(false)}
         />
+      )}
+
+      {addOpen && (
+        <Win95Modal title="Add wallet" onClose={() => setAddOpen(false)} width={560}>
+          <AddWalletForm onDone={() => setAddOpen(false)} />
+        </Win95Modal>
       )}
     </div>
   )
