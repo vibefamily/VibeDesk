@@ -14,6 +14,11 @@ export default defineConfig({
         vite: {
           build: {
             outDir: 'dist-electron/main',
+            rollupOptions: {
+              // WASM module with a locateFile hook: keep it external so it
+              // resolves sql-wasm.wasm from node_modules at runtime.
+              external: ['sql.js'],
+            },
           },
         },
       },

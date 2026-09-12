@@ -15,7 +15,9 @@ import { createSkillManager, setupSkillsIpc } from './skills'
 import { setProviderConfigsProvider } from './market'
 import { arcQuote, arcSwap, arcBalances, arcWaitReceipt } from './arc'
 import { setupArcIpc } from './ipc-arc'
-import { setupMarketIpc, stopMarketPolling } from './market'
+import { setupMarketIpc, stopMarketPolling, setStockHistoryDb } from './market'
+import { initDbRoot, stockHistoryDbPath } from './db/dbPaths'
+import { StockHistoryDb } from './db/stockHistory'
 import { setupInfoIpc, getInfoManager } from './info'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -265,6 +267,10 @@ function setupIpcHandlers() {
 
 // --- App lifecycle ---
 
+// Suppress the macOS "Electron unexpectedly quit, reopen windows?" bubble
+// that appears after a hard kill during development.
+app.commandLine.appendSwitch('disable-session-crashed-bubble')
+
 app.whenReady().then(async () => {
   setupIpcHandlers()
   createWindow()
@@ -277,6 +283,17 @@ app.whenReady().then(async () => {
   setupSkillsIpc(skillManager)
 
   setupArcIpc({ getWalletManager })
+
+  // SQLite storage: market price history now, agent context etc. later
+  // (layout: userData/db/<domain>/...). sql.js (WASM) is used because the
+  // better-sqlite3 native prebuild hung inside the Electron main process.
+  try {
+    initDbRoot(app.getPath('userData'))
+    setStockHistoryDb(await StockHistoryDb.open(stockHistoryDbPath()))
+    console.log('[db] stock history db ready:', stockHistoryDbPath())
+  } catch (e) {
+    console.error('[db] failed to init stock history db:', (e as Error).message)
+  }
 
   setupMarketIpc()
 

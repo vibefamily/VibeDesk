@@ -212,6 +212,17 @@ interface MarketApiType {
     unavailable: Record<string, string[]>
     lastUpdated: number
   }>
+  history: (args: {
+    symbol: string
+    providers?: string[]
+    from?: number
+    to?: number
+  }) => Promise<HistorySeriesApiType[]>
+}
+
+interface HistorySeriesApiType {
+  provider: string
+  points: { ts: number; price: number }[]
 }
 
 interface InfoApiType {

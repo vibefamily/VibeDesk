@@ -12,6 +12,7 @@ import { useMarketStore } from '../stores/marketStore'
 import { useAgentStore } from '../stores/agentStore'
 import { useWindowStore } from '../components/95/windowStore'
 import ArcSwapPanel from '../components/ArcSwapPanel'
+import PriceChart, { type ChartSeries } from '../components/PriceChart'
 import { DEFAULT_STOCK_TICKERS, STOCK_TICKER_NAMES } from '@vibe/shared'
 
 const fmtPrice = (v: number | undefined): string =>
@@ -69,6 +70,8 @@ const StockTokens: React.FC = () => {
   const { ready, error, manifests, ticks, unavailable, init, refreshSymbol } = useMarketStore()
   const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_STOCK_TICKERS[0] ?? 'TSLA')
   const [arcSwap, setArcSwap] = useState<{ direction: 'buy' | 'sell'; symbol: string } | null>(null)
+  const [range, setRange] = useState<'1h' | '1d' | '1w'>('1h')
+  const [history, setHistory] = useState<ChartSeries[]>([])
 
   useEffect(() => {
     void init()
@@ -77,6 +80,26 @@ const StockTokens: React.FC = () => {
   useEffect(() => {
     void refreshSymbol(selectedTicker)
   }, [selectedTicker, refreshSymbol])
+
+  // Price history from the local SQLite store (one point per minute).
+  const RANGE_SEC: Record<'1h' | '1d' | '1w', number> = { '1h': 3600, '1d': 86_400, '1w': 604_800 }
+  const loadHistory = React.useCallback(async (): Promise<void> => {
+    try {
+      const res = await window.vibeAPI.market.history({
+        symbol: selectedTicker,
+        from: Math.floor(Date.now() / 1000) - RANGE_SEC[range],
+      })
+      setHistory(res.map((s) => ({ provider: s.provider, points: s.points })))
+    } catch (e) {
+      console.warn('[stock] history load failed', e)
+    }
+  }, [selectedTicker, range])
+
+  useEffect(() => {
+    void loadHistory()
+    const t = setInterval(() => void loadHistory(), 60_000)
+    return () => clearInterval(t)
+  }, [loadHistory])
 
   const providerIds = manifests.map((m) => m.id)
 
@@ -205,6 +228,42 @@ const StockTokens: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* History chart: same symbol across sources on one time axis */}
+      <div
+        style={{
+          border: '2px outset',
+          borderColor: '#fff #808080 #808080 #fff',
+          background: '#c0c0c0',
+          padding: '6px 10px',
+          marginBottom: 8,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, fontSize: 12 }}>{selectedTicker} price history</span>
+          <span style={{ fontSize: 10, color: '#333' }}>stored locally every minute · SQLite</span>
+          <div style={{ flex: 1 }} />
+          {(['1h', '1d', '1w'] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              style={{
+                ...winBtn,
+                padding: '2px 10px',
+                fontWeight: range === r ? 700 : 500,
+                background: range === r ? '#000080' : '#c0c0c0',
+                color: range === r ? '#fff' : '#000',
+              }}
+            >
+              {r}
+            </button>
+          ))}
+          <button onClick={() => void loadHistory()} style={{ ...winBtn, padding: '2px 10px' }}>
+            Refresh
+          </button>
+        </div>
+        <PriceChart series={history} height={210} />
+      </div>
 
       {/* Price table */}
       <div

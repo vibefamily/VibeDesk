@@ -13,6 +13,7 @@ import { createDefaultDataSources } from '@vibe/data-sources'
 import type { DefaultDataSources } from '@vibe/data-sources'
 import { DEFAULT_STOCK_TICKERS } from '@vibe/shared'
 import type { TickData } from '@vibe/shared'
+import { StockHistoryDb } from './db/stockHistory'
 
 const POLL_MS = 15_000
 const CONCURRENCY = 4
@@ -42,10 +43,17 @@ export async function getMarketAggregator() {
   return (await getMarketDataSources()).aggregator
 }
 
-interface MarketSnapshot {
+export interface MarketSnapshot {
   ticks: Record<string, Record<string, TickData>>
   unavailable: Record<string, string[]>
   lastUpdated: number
+}
+
+/** SQLite price history store (one row per symbol/provider/minute). */
+let stockHistory: StockHistoryDb | null = null
+
+export function setStockHistoryDb(db: StockHistoryDb): void {
+  stockHistory = db
 }
 
 async function snapshotSymbol(
@@ -101,6 +109,12 @@ async function pollOnce(): Promise<void> {
         0,
       )
       console.log(`[market] poll round: ${count} live ticks`)
+      // Persist one minute-bucket point per provider for the history chart.
+      try {
+        stockHistory?.insertSnapshot(snap)
+      } catch (e) {
+        console.warn('[market] history write failed:', (e as Error).message)
+      }
       broadcast(snap)
     } else {
       console.warn('[market] poll round failed; retrying next interval')
@@ -126,6 +140,22 @@ export function setupMarketIpc(): void {
     void pollOnce()
     return { ready: true, manifests, ticks: {}, unavailable: {}, lastUpdated: Date.now() }
   })
+
+  ipcMain.handle(
+    'market:history',
+    (
+      _e,
+      args: { symbol: string; providers?: string[]; from?: number; to?: number },
+    ) => {
+      if (!stockHistory) return []
+      return stockHistory.queryHistory(
+        args.symbol,
+        args.providers,
+        args.from,
+        args.to,
+      )
+    },
+  )
 
   ipcMain.handle('market:refreshSymbol', async (_e, symbol: string) => {
     const result = await snapshotSymbol(String(symbol).toUpperCase())

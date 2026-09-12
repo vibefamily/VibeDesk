@@ -209,6 +209,12 @@ const vibeAPI = {
     getState: () => ipcRenderer.invoke('market:getState'),
     refreshSymbol: (symbol: string) =>
       ipcRenderer.invoke('market:refreshSymbol', symbol),
+    history: (args: {
+      symbol: string
+      providers?: string[]
+      from?: number
+      to?: number
+    }) => ipcRenderer.invoke('market:history', args),
   },
 
   // Info Center (M3): multi-source news/tweet pulls
