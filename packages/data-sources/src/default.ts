@@ -63,16 +63,24 @@ export interface DefaultDataSources {
   registry: DataSourceRegistry
 }
 
+/** Per-provider config overrides keyed by provider id (e.g. binance api key). */
+export interface ProviderConfigs {
+  [providerId: string]: Record<string, string>
+}
+
 /** Create and connect the default set of providers. */
-export async function createDefaultDataSources(): Promise<DefaultDataSources> {
+export async function createDefaultDataSources(
+  options: { providerConfigs?: ProviderConfigs } = {},
+): Promise<DefaultDataSources> {
   const aggregator = new MarketDataAggregator()
   const registry = new DataSourceRegistry()
+  const cfg = options.providerConfigs ?? {}
 
   const providers = [
     new RobinhoodProvider(),
     new YahooFinanceProvider(),
     new HyperliquidProvider(),
-    new BinanceSpotProvider(),
+    new BinanceSpotProvider(cfg.binance ?? {}),
   ]
 
   for (const provider of providers) {

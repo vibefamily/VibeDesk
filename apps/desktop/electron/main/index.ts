@@ -11,6 +11,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { VaultWalletManager } from '@vibe/core/wallet'
 import { setupAgentIpc } from './ipc-agents'
+import { createSkillManager, setupSkillsIpc } from './skills'
+import { setProviderConfigsProvider } from './market'
 import { setupMarketIpc, stopMarketPolling } from './market'
 import { setupInfoIpc, getInfoManager } from './info'
 
@@ -267,6 +269,11 @@ app.whenReady().then(async () => {
 
   // Market data bridge: polls live prices in the main process and pushes
   // ticks to the renderer (fixes browser CORS on public endpoints).
+  // Skills: configurable capability packages (data-source keys, tool sets).
+  const skillManager = createSkillManager(app.getPath('userData'))
+  setProviderConfigsProvider(() => skillManager.providerConfigs())
+  setupSkillsIpc(skillManager)
+
   setupMarketIpc()
 
   // Info Center: scheduled multi-source news/tweet pulls + local cache.

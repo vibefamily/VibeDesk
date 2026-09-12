@@ -22,6 +22,11 @@ const vibeAPI = {
     remove: (args) => ipcRenderer.invoke("wallet:remove", args)
   },
   // Agents (managed in the main process)
+  skills: {
+    list: () => ipcRenderer.invoke("skills:list"),
+    saveConfig: (args) => ipcRenderer.invoke("skills:saveConfig", args),
+    testConnection: (args) => ipcRenderer.invoke("skills:testConnection", args)
+  },
   agent: {
     listDataSources: () => ipcRenderer.invoke("agent:listDataSources"),
     setDataSourceAuth: (args) => ipcRenderer.invoke("agent:setDataSourceAuth", args),

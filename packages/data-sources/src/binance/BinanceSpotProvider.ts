@@ -51,13 +51,24 @@ function timeframeToSeconds(tf: string): number {
  * Uses Binance public REST API for historical data and WebSocket streams
  * for real-time data. No authentication required for market data endpoints.
  */
+export interface BinanceProviderConfig {
+  apiKey?: string
+  apiSecret?: string
+}
+
 export class BinanceSpotProvider implements IMarketDataProvider {
   readonly id = 'binance'
+  /** Optional user credentials (kept in the main process, never in renderer). */
+  readonly config: BinanceProviderConfig
   private _isConnected = false
   private ws: WebSocketManager | null = null
   private instrumentCache: Instrument[] = []
   private instrumentCacheTime = 0
   private cacheTtlMs = 3600_000 // 1 hour
+
+  constructor(config: BinanceProviderConfig = {}) {
+    this.config = config
+  }
 
   get isConnected(): boolean {
     return this._isConnected

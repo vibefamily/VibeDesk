@@ -102,6 +102,29 @@ interface AgentInstanceApiType {
   walletAuths: string[]
 }
 
+interface SkillsApiType {
+  list: () => Promise<
+    {
+      id: string
+      name: string
+      description: string
+      icon: string
+      kind: 'data-source' | 'tool-set'
+      authRequired: boolean
+      configuredKeys: string[]
+      configFields: { key: string; label: string; secret: boolean; placeholder?: string }[]
+    }[]
+  >
+  saveConfig: (args: { skillId: string; config: Record<string, string> }) => Promise<{
+    skills: unknown[]
+    requiresRestart: boolean
+  }>
+  testConnection: (args: { skillId: string; config: Record<string, string> }) => Promise<{
+    ok: boolean
+    message: string
+  }>
+}
+
 interface AgentApiType {
   listDataSources: () => Promise<string[]>
   setDataSourceAuth: (args: { id: string; dataSources: string[] }) => Promise<AgentInstanceApiType | null>
@@ -220,6 +243,7 @@ interface VibeAPI {
   getAppInfo: () => Promise<{ version: string; name: string; platform: string }>
   ping: () => Promise<string>
   wallet: WalletApiType
+  skills: SkillsApiType
   agent: AgentApiType
   market: MarketApiType
   info: InfoApiType

@@ -17,6 +17,13 @@ import type { TickData } from '@vibe/shared'
 const POLL_MS = 15_000
 const CONCURRENCY = 4
 
+/** Injectable source of per-provider configs (wired by the skills module). */
+let providerConfigsProvider: (() => Record<string, Record<string, string>>) | null = null
+
+export function setProviderConfigsProvider(fn: () => Record<string, Record<string, string>>): void {
+  providerConfigsProvider = fn
+}
+
 let dataSourcesPromise: Promise<DefaultDataSources> | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 /** Guards against overlapping snapshot rounds (snapshot can outlast POLL_MS). */
@@ -24,7 +31,9 @@ let snapshotting = false
 
 export function getMarketDataSources(): Promise<DefaultDataSources> {
   if (!dataSourcesPromise) {
-    dataSourcesPromise = createDefaultDataSources()
+    dataSourcesPromise = createDefaultDataSources({
+      providerConfigs: providerConfigsProvider?.() ?? {},
+    })
   }
   return dataSourcesPromise
 }

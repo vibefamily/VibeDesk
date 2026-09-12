@@ -151,6 +151,13 @@ const vibeAPI = {
   } satisfies WalletApi,
 
   // Agents (managed in the main process)
+  skills: {
+    list: () => ipcRenderer.invoke('skills:list'),
+    saveConfig: (args: { skillId: string; config: Record<string, string> }) =>
+      ipcRenderer.invoke('skills:saveConfig', args),
+    testConnection: (args: { skillId: string; config: Record<string, string> }) =>
+      ipcRenderer.invoke('skills:testConnection', args),
+  },
   agent: {
     listDataSources: () => ipcRenderer.invoke('agent:listDataSources'),
     setDataSourceAuth: (args: { id: string; dataSources: string[] }) =>

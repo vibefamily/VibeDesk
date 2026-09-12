@@ -8,8 +8,10 @@
  * (Arc chain, Binance stocks with API key, etc.) extends from here.
  */
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useMarketStore } from '../stores/marketStore'
+import { useSkillStore } from '../stores/skillStore'
+import type { SkillView } from '../stores/skillStore'
 
 const KIND_ICON: Record<string, string> = {
   broker: '🏦',
@@ -18,12 +20,136 @@ const KIND_ICON: Record<string, string> = {
   cex: '🏛️',
 }
 
+/** Inline config form for an auth-requiring data-source skill. */
+const SkillConfigForm: React.FC<{ skill: SkillView }> = ({ skill }) => {
+  const { saveConfig, testConnection } = useSkillStore()
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  const [noteOk, setNoteOk] = useState(true)
+
+  const setField = (key: string, value: string) => setValues((prev) => ({ ...prev, [key]: value }))
+
+  const save = async () => {
+    setSaving(true)
+    setNote(null)
+    try {
+      const result = await saveConfig(skill.id, values)
+      setNoteOk(true)
+      setNote(result.requiresRestart ? 'Saved. Restart the app to apply the key to the data source.' : 'Saved.')
+      setValues({})
+    } catch (e) {
+      setNoteOk(false)
+      setNote((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const test = async () => {
+    setTesting(true)
+    setNote(null)
+    try {
+      const result = await testConnection(skill.id, values)
+      setNoteOk(result.ok)
+      setNote(result.message)
+    } catch (e) {
+      setNoteOk(false)
+      setNote((e as Error).message)
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        border: '1px inset',
+        borderColor: '#808080 #fff #fff #808080',
+        background: '#c0c0c0',
+        padding: 6,
+        marginTop: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
+      {skill.configFields.map((field) => (
+        <label key={field.key} style={{ fontSize: 10, color: '#000', display: 'flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ width: 70 }}>{field.label}</span>
+          <input
+            type={field.secret ? 'password' : 'text'}
+            placeholder={field.placeholder ?? ''}
+            value={values[field.key] ?? ''}
+            onChange={(e) => setField(field.key, e.target.value)}
+            style={{
+              flex: 1,
+              background: '#fff',
+              color: '#000',
+              border: '2px inset',
+              borderColor: '#808080 #fff #fff #808080',
+              padding: '2px 6px',
+              fontSize: 11,
+              fontFamily: 'inherit',
+            }}
+          />
+        </label>
+      ))}
+      {skill.configuredKeys.length > 0 && (
+        <div style={{ fontSize: 10, color: '#060' }}>
+          ✓ configured: {skill.configuredKeys.join(', ')}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          style={{
+            fontSize: 10,
+            padding: '2px 10px',
+            background: '#c0c0c0',
+            border: '2px outset',
+            borderColor: '#fff #808080 #808080 #fff',
+            color: '#000',
+            cursor: 'pointer',
+          }}
+        >
+          {saving ? 'Saving…' : 'Save key'}
+        </button>
+        <button
+          onClick={() => void test()}
+          disabled={testing}
+          style={{
+            fontSize: 10,
+            padding: '2px 10px',
+            background: '#c0c0c0',
+            border: '2px outset',
+            borderColor: '#fff #808080 #808080 #fff',
+            color: '#000',
+            cursor: 'pointer',
+          }}
+        >
+          {testing ? 'Testing…' : 'Test connection'}
+        </button>
+        {note && (
+          <span style={{ fontSize: 10, color: noteOk ? '#060' : '#a00' }}>{note}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const DataSources: React.FC = () => {
   const { ready, error, manifests, ticks, unavailable, init } = useMarketStore()
+  const { skills, refresh: refreshSkills, saveConfig, testConnection } = useSkillStore()
 
   useEffect(() => {
     void init()
-  }, [init])
+    void refreshSkills()
+  }, [init, refreshSkills])
+
+  const skillById = new Map(skills.map((sk) => [sk.id, sk]))
 
   const entries = manifests
 
@@ -146,6 +272,9 @@ const DataSources: React.FC = () => {
               >
                 {status.live} symbols live · {status.unavailable} unavailable
               </div>
+              {entry.authRequired && skillById.get(entry.id) && (
+                <SkillConfigForm skill={skillById.get(entry.id)!} />
+              )}
             </div>
           )
         })}
