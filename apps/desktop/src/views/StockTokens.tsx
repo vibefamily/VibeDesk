@@ -11,6 +11,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useMarketStore } from '../stores/marketStore'
 import { useAgentStore } from '../stores/agentStore'
 import { useWindowStore } from '../components/95/windowStore'
+import ArcSwapPanel from '../components/ArcSwapPanel'
 import { DEFAULT_STOCK_TICKERS, STOCK_TICKER_NAMES } from '@vibe/shared'
 
 const fmtPrice = (v: number | undefined): string =>
@@ -67,6 +68,7 @@ async function askAI(symbol: string): Promise<void> {
 const StockTokens: React.FC = () => {
   const { ready, error, manifests, ticks, unavailable, init, refreshSymbol } = useMarketStore()
   const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_STOCK_TICKERS[0] ?? 'TSLA')
+  const [arcSwap, setArcSwap] = useState<{ direction: 'buy' | 'sell'; symbol: string } | null>(null)
 
   useEffect(() => {
     void init()
@@ -292,6 +294,13 @@ const StockTokens: React.FC = () => {
         {selectedTicker} · — = source has no quote for this symbol (e.g. Hyperliquid / Binance
         only list crypto)
       </div>
+
+      <ArcSwapPanel
+        open={arcSwap !== null}
+        direction={arcSwap?.direction ?? 'buy'}
+        symbol={arcSwap?.symbol ?? ''}
+        onClose={() => setArcSwap(null)}
+      />
     </div>
   )
 }

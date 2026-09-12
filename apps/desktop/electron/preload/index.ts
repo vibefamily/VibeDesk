@@ -151,6 +151,22 @@ const vibeAPI = {
   } satisfies WalletApi,
 
   // Agents (managed in the main process)
+  arc: {
+    quote: (args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) =>
+      ipcRenderer.invoke('arc:quote', args),
+    balances: (args: { walletId: string; index?: number; token: string }) =>
+      ipcRenderer.invoke('arc:balances', args),
+    swap: (args: {
+      walletId: string
+      index?: number
+      token: string
+      zeroForOne: boolean
+      amountIn: string
+      amountOutMinimum: string
+      hooks?: string
+    }) => ipcRenderer.invoke('arc:swap', args),
+    waitReceipt: (hash: string) => ipcRenderer.invoke('arc:waitReceipt', hash),
+  },
   skills: {
     list: () => ipcRenderer.invoke('skills:list'),
     saveConfig: (args: { skillId: string; config: Record<string, string> }) =>

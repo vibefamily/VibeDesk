@@ -103,6 +103,26 @@ interface AgentInstanceApiType {
   desktopIcon: boolean
 }
 
+interface ArcApiType {
+  quote: (args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) => Promise<{
+    amountOut: string
+  }>
+  balances: (args: { walletId: string; index?: number; token: string }) => Promise<{
+    nativeUsdc: string
+    token: string
+  }>
+  swap: (args: {
+    walletId: string
+    index?: number
+    token: string
+    zeroForOne: boolean
+    amountIn: string
+    amountOutMinimum: string
+    hooks?: string
+  }) => Promise<{ hash: string }>
+  waitReceipt: (hash: string) => Promise<{ status: 'success' | 'reverted' }>
+}
+
 interface SkillsApiType {
   list: () => Promise<
     {
@@ -250,6 +270,7 @@ interface VibeAPI {
   getAppInfo: () => Promise<{ version: string; name: string; platform: string }>
   ping: () => Promise<string>
   wallet: WalletApiType
+  arc: ArcApiType
   skills: SkillsApiType
   agent: AgentApiType
   market: MarketApiType

@@ -13,6 +13,8 @@ import { VaultWalletManager } from '@vibe/core/wallet'
 import { setupAgentIpc } from './ipc-agents'
 import { createSkillManager, setupSkillsIpc } from './skills'
 import { setProviderConfigsProvider } from './market'
+import { arcQuote, arcSwap, arcBalances, arcWaitReceipt } from './arc'
+import { setupArcIpc } from './ipc-arc'
 import { setupMarketIpc, stopMarketPolling } from './market'
 import { setupInfoIpc, getInfoManager } from './info'
 
@@ -273,6 +275,8 @@ app.whenReady().then(async () => {
   const skillManager = createSkillManager(app.getPath('userData'))
   setProviderConfigsProvider(() => skillManager.providerConfigs())
   setupSkillsIpc(skillManager)
+
+  setupArcIpc({ getWalletManager })
 
   setupMarketIpc()
 
