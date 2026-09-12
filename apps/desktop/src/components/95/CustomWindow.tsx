@@ -198,12 +198,17 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
     )
   }
 
+  // Controlled mode REQUIRES onDrag: without it every parent
+  // re-render (e.g. the focusWindow z-order bump on mousedown)
+  // resets the node to the stored position, which reads as "the
+  // window cannot be dragged".
   return (
     <Draggable
       nodeRef={nodeRef}
       handle=".win95-title-bar"
       position={{ x, y }}
       scale={zoom}
+      onDrag={(_e, data) => updateWindowPosition(windowId, data.x, data.y)}
       onStop={(_e, data) => updateWindowPosition(windowId, data.x, data.y)}
       bounds="parent"
     >
