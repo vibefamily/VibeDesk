@@ -81,27 +81,22 @@ const StockTokens: React.FC = () => {
     void refreshSymbol(selectedTicker)
   }, [selectedTicker, refreshSymbol])
 
+  const providerIds = manifests.map((m) => m.id)
+
   // Price history from the local SQLite store (one point per minute).
   const RANGE_SEC: Record<'1h' | '1d' | '1w', number> = { '1h': 3600, '1d': 86_400, '1w': 604_800 }
   const loadHistory = React.useCallback(async (): Promise<void> => {
     try {
       const res = await window.vibeAPI.market.history({
         symbol: selectedTicker,
+        providers: providerIds,
         from: Math.floor(Date.now() / 1000) - RANGE_SEC[range],
       })
       setHistory(res.map((s) => ({ provider: s.provider, points: s.points })))
     } catch (e) {
       console.warn('[stock] history load failed', e)
     }
-  }, [selectedTicker, range])
-
-  useEffect(() => {
-    void loadHistory()
-    const t = setInterval(() => void loadHistory(), 60_000)
-    return () => clearInterval(t)
-  }, [loadHistory])
-
-  const providerIds = manifests.map((m) => m.id)
+  }, [selectedTicker, range, providerIds])
 
   const rows = useMemo(
     () =>
@@ -262,7 +257,7 @@ const StockTokens: React.FC = () => {
             Refresh
           </button>
         </div>
-        <PriceChart series={history} height={210} />
+        <PriceChart series={history} height={210} providers={providerIds} />
       </div>
 
       {/* Price table */}

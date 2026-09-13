@@ -16,26 +16,6 @@ import type { ProviderManifest } from './registry'
 /** Manifests for the built-in providers. */
 export const BUILTIN_MANIFESTS: ProviderManifest[] = [
   {
-    id: 'robinhood',
-    name: 'Robinhood',
-    kind: 'broker',
-    assetScope: 'stocks',
-    authRequired: false,
-    updateMode: ['polling'],
-    description: 'US equity quotes from Robinhood public endpoint',
-    privacyNote: 'Public quotes endpoint only; no account access.',
-  },
-  {
-    id: 'yahoo',
-    name: 'Yahoo Finance',
-    kind: 'aggregator',
-    assetScope: 'stocks',
-    authRequired: false,
-    updateMode: ['polling'],
-    description: 'US equity quotes & candles from Yahoo public chart API',
-    privacyNote: 'Public chart endpoint; no account access.',
-  },
-  {
     id: 'hyperliquid',
     name: 'Hyperliquid',
     kind: 'dex',
@@ -46,6 +26,16 @@ export const BUILTIN_MANIFESTS: ProviderManifest[] = [
     privacyNote: 'Public Info API; no API key required.',
   },
   {
+    id: 'robinhood',
+    name: 'Robinhood',
+    kind: 'broker',
+    assetScope: 'stocks',
+    authRequired: false,
+    updateMode: ['polling'],
+    description: 'US equity quotes from Robinhood public endpoint',
+    privacyNote: 'Public quotes endpoint only; no account access.',
+  },
+  {
     id: 'binance',
     name: 'Binance',
     kind: 'cex',
@@ -54,6 +44,16 @@ export const BUILTIN_MANIFESTS: ProviderManifest[] = [
     updateMode: ['rest', 'ws'],
     description: 'Spot market data incl. tokenized stocks (TSLABUSDT). User API key unlocks stock symbols.',
     privacyNote: 'Keys stay in the main process config, never shown or sent out.',
+  },
+  {
+    id: 'yahoo',
+    name: 'Yahoo Finance',
+    kind: 'aggregator',
+    assetScope: 'stocks',
+    authRequired: false,
+    updateMode: ['polling'],
+    description: 'US equity quotes & candles from Yahoo public chart API',
+    privacyNote: 'Public chart endpoint; no account access.',
   },
 ]
 
@@ -77,10 +77,10 @@ export async function createDefaultDataSources(
   const cfg = options.providerConfigs ?? {}
 
   const providers = [
-    new RobinhoodProvider(),
-    new YahooFinanceProvider(),
     new HyperliquidProvider(),
+    new RobinhoodProvider(),
     new BinanceSpotProvider(cfg.binance ?? {}),
+    new YahooFinanceProvider(),
   ]
 
   for (const provider of providers) {

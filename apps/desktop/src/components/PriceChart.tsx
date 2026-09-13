@@ -40,9 +40,11 @@ const PAD_B = 24
 interface Props {
   series: ChartSeries[]
   height?: number
+  /** Fixed legend order; sources without data render as "no data". */
+  providers?: string[]
 }
 
-const PriceChart: React.FC<Props> = ({ series, height = 220 }) => {
+const PriceChart: React.FC<Props> = ({ series, height = 220, providers }) => {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(600)
 
@@ -63,6 +65,17 @@ const PriceChart: React.FC<Props> = ({ series, height = 220 }) => {
         .filter((s) => s.points.length > 0),
     [series],
   )
+
+  /** Legend in the requested order; empty sources shown as "no data". */
+  const legend = useMemo(() => {
+    const names = providers && providers.length > 0 ? providers : data.map((s) => s.provider)
+    const has = new Set(data.map((s) => s.provider))
+    return names.map((name) => ({
+      name,
+      has: has.has(name),
+      color: colorFor(name),
+    }))
+  }, [providers, data])
 
   const geom = useMemo(() => {
     if (data.length === 0) return null
@@ -120,40 +133,54 @@ const PriceChart: React.FC<Props> = ({ series, height = 220 }) => {
     return { paths, yLabels, xLabels, minP, maxP, rangeT }
   }, [data, width, height])
 
+  const legendEl = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', marginBottom: 4 }}>
+      {legend.map((l) => (
+        <span key={l.name} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span
+            style={{
+              width: 12,
+              height: 2,
+              background: l.has ? l.color : '#bbb',
+              display: 'inline-block',
+            }}
+          />
+          {l.name}
+          {!l.has && <span style={{ color: '#999', fontSize: 10, fontStyle: 'italic' }}>no data</span>}
+        </span>
+      ))}
+    </div>
+  )
+
   if (!geom) {
     return (
-      <div
-        ref={wrapRef}
-        style={{
-          width: '100%',
-          height,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#808080',
-          fontSize: 12,
-          background: '#fff',
-          border: '1px inset',
-          borderColor: '#808080 #fff #fff #808080',
-          boxSizing: 'border-box',
-        }}
-      >
-        No history recorded yet - a point per source is stored every minute
-        once live polling starts.
+      <div ref={wrapRef} style={{ width: '100%', boxSizing: 'border-box' }}>
+        {legendEl}
+        <div
+          style={{
+            width: '100%',
+            height: height - 22,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#808080',
+            fontSize: 12,
+            background: '#fff',
+            border: '1px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            boxSizing: 'border-box',
+          }}
+        >
+          No history recorded yet - a point per source is stored every minute
+          once live polling starts.
+        </div>
       </div>
     )
   }
 
   return (
     <div ref={wrapRef} style={{ width: '100%', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', marginBottom: 4 }}>
-        {data.map((s) => (
-          <span key={s.provider} style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 12, height: 2, background: colorFor(s.provider), display: 'inline-block' }} />
-            {s.provider}
-          </span>
-        ))}
-      </div>
+      {legendEl}
       <svg
         width={width}
         height={height}
