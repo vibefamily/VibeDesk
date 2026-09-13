@@ -82,6 +82,7 @@ export interface AgentInstanceView {
   messages: AgentMessageView[]
   dataSources: string[]
   walletAuths: string[]
+  skills: string[]
   desktopIcon: boolean
 }
 
@@ -114,6 +115,7 @@ interface AgentState {
   dataSources: string[]
   setDataSourceAuth: (id: string, sources: string[]) => Promise<void>
   setWalletAuth: (id: string, keys: string[]) => Promise<void>
+  setSkills: (id: string, skills: string[]) => Promise<void>
   setLlmModel: (model: string) => Promise<void>
   listProviders: () => Promise<ProviderView[]>
   saveProvider: (input: ProviderInput) => Promise<ProviderView>
@@ -212,6 +214,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   setWalletAuth: async (id, keys) => {
     await api.setWalletAuth({ id, walletAuths: keys })
+    await get().refresh()
+  },
+
+  setSkills: async (id, skills) => {
+    await api.setSkills({ id, skills })
     await get().refresh()
   },
 

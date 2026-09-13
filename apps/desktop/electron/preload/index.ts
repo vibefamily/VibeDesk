@@ -185,6 +185,9 @@ const vibeAPI = {
       ipcRenderer.invoke('agent:setDataSourceAuth', args),
     setWalletAuth: (args: { id: string; walletAuths: string[] }) =>
       ipcRenderer.invoke('agent:setWalletAuth', args),
+    setSkills: (args: { id: string; skills: string[] }) =>
+      ipcRenderer.invoke('agent:setSkills', args),
+    listSkills: () => ipcRenderer.invoke('skills:list'),
 
     listTemplates: () => ipcRenderer.invoke('agent:listTemplates'),
     list: () => ipcRenderer.invoke('agent:list'),

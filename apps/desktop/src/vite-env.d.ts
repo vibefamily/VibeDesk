@@ -112,6 +112,7 @@ interface AgentInstanceApiType {
   }[]
   dataSources: string[]
   walletAuths: string[]
+  skills: string[]
   desktopIcon: boolean
 }
 
@@ -175,6 +176,8 @@ interface AgentApiType {
   listDataSources: () => Promise<string[]>
   setDataSourceAuth: (args: { id: string; dataSources: string[] }) => Promise<AgentInstanceApiType | null>
   setWalletAuth: (args: { id: string; walletAuths: string[] }) => Promise<AgentInstanceApiType | null>
+  setSkills: (args: { id: string; skills: string[] }) => Promise<AgentInstanceApiType | null>
+  listSkills: () => Promise<{ id: string; name: string; description: string; icon: string }[]>
   listTemplates: () => Promise<AgentTemplateApiType[]>
   list: () => Promise<AgentInstanceApiType[]>
   getMode: () => Promise<'llm' | 'rule'>

@@ -11,11 +11,25 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { AgentManager, OpenAICompatibleProvider } from '@vibe/agent-plugins'
 import type { OpenAIConfig } from '@vibe/agent-plugins'
-import type { LlmConfigFile, LlmProviderConfig } from '@vibe/agent-plugins'
+import type { LlmConfigFile, LlmProviderConfig, TradeExecutor } from '@vibe/agent-plugins'
 import type { MarketDataAggregator } from '@vibe/core'
 import type { VaultWalletManager } from '@vibe/core/wallet'
 import { getMarketAggregator } from './market'
 import type { InfoManager } from './info'
+import {
+  arcQuote,
+  arcSwap,
+  arcBalances,
+  arcWaitReceipt,
+  arcExplorerTx,
+} from './arc'
+import { privateKeyToAccount } from 'viem/accounts'
+
+/**
+ * Demo token on Arc testnet standing in for BTC/ETH until mainnet asset
+ * mapping lands (Minara's graduated token).
+ */
+const DEMO_ARC_TOKEN = '0xe2cfd2893ad90e8a5b4f87c5cad22d150b1e12a0' as `0x${string}`
 
 let agentManager: AgentManager | null = null
 let agentConfigPath = ''
@@ -106,11 +120,65 @@ export async function setupAgentIpc(
   const market: MarketDataAggregator = await getMarketAggregator()
 
   const resolveInfo = options.infoStore
+  // Bridge that lets the trade-execute skill sign real Arc swaps with the
+  // vault's in-memory authorized key. Private keys never leave the main
+  // process; the agent only ever sees tx hashes and balances.
+  const tradeExecutor: TradeExecutor = {
+    resolveToken: async (symbol) => {
+      const s = String(symbol).toUpperCase()
+      if (s === 'BTC' || s === 'ETH') return DEMO_ARC_TOKEN
+      if (/^0x[a-fA-F0-9]{40}$/.test(s)) return s.toLowerCase() as `0x${string}`
+      throw new Error(`Unknown token: ${symbol}`)
+    },
+    getQuote: async (token, amountIn, buy) => {
+      const q = await arcQuote({
+        token: token as `0x${string}`,
+        zeroForOne: buy,
+        amountIn: BigInt(amountIn),
+      })
+      const price =
+        (Number(q.amountOut) / 10 ** q.decimals) / (Number(amountIn) / 10 ** 18)
+      return { amountOut: q.amountOut.toString(), decimals: q.decimals, price: price.toFixed(6) }
+    },
+    executeSwap: async ({ walletId, index, token, amountIn, buy, amountOutMinimum }) => {
+      const vault = options.getWallet()
+      const privateKey = vault.getAuthorizedKey(walletId, index)
+      if (!privateKey) {
+        throw new Error(
+          'Wallet is not unlocked/authorized for trading - unlock the vault and grant this wallet in Wallet Manager',
+        )
+      }
+      const { hash } = await arcSwap({
+        privateKey: privateKey as `0x${string}`,
+        token: token as `0x${string}`,
+        zeroForOne: buy,
+        amountIn: BigInt(amountIn),
+        amountOutMinimum: BigInt(amountOutMinimum),
+      })
+      return { hash, explorerUrl: arcExplorerTx(hash) }
+    },
+    waitReceipt: async (hash) => {
+      const receipt = await arcWaitReceipt(hash)
+      return { status: receipt.status, explorerUrl: arcExplorerTx(hash) }
+    },
+    getBalances: async (walletId, index, token) => {
+      const vault = options.getWallet()
+      const key = vault.getAuthorizedKey(walletId, index)
+      if (!key) {
+        throw new Error(
+          'Wallet is not unlocked/authorized for trading - unlock the vault and grant this wallet in Wallet Manager',
+        )
+      }
+      const account = privateKeyToAccount(key as `0x${string}`)
+      return arcBalances(account.address, token as `0x${string}`)
+    },
+  }
   agentManager = new AgentManager({
     market,
     agentsDir: options.agentsDir,
     piAgentDir: options.piAgentDir,
     enabledToolsets: options.enabledToolsets,
+    tradeExecutor,
     ...(resolveInfo
       ? {
           infoStore: {
@@ -164,12 +232,18 @@ export async function setupAgentIpc(
     const existing = agentManager.list().find((a) => a.templateId === templateId)
     if (existing) {
       if (!existing.desktopIcon) agentManager.setDesktopIcon(existing.id, true)
+      // Trade Agent ships with the trade-execute skill enabled so it can
+      // act on chat intents; other agents opt in via Skills.
+      if (templateId === 'stock-analyst' && !(existing.skills ?? []).includes('trade-execute')) {
+        agentManager.setSkills(existing.id, [...(existing.skills ?? []), 'trade-execute'])
+      }
       return
     }
     agentManager.create(templateId, {
       name: fallbackName,
       symbols: templateId === 'stock-analyst' ? ['TSLA', 'NVDA'] : undefined,
       desktopIcon: true,
+      skills: templateId === 'stock-analyst' ? ['trade-execute'] : undefined,
     })
   }
   ensureDesktopAgent('stock-analyst', 'Trade Agent')
@@ -187,6 +261,45 @@ export async function setupAgentIpc(
   ipcMain.handle('agent:setWalletAuth', (_e, args: { id: string; walletAuths: string[] }) => {
     agentManager!.setWalletAuth(args.id, args.walletAuths ?? [])
     return agentManager!.get(args.id)
+  })
+
+  ipcMain.handle('agent:setSkills', (_e, args: { id: string; skills: string[] }) => {
+    agentManager!.setSkills(args.id, args.skills ?? [])
+    return agentManager!.get(args.id)
+  })
+
+  // Built-in skills catalog (global install/uninstall lands later).
+  ipcMain.handle('skills:list', () => {
+    return [
+      {
+        id: 'trade-execute',
+        name: 'Trade Execute',
+        description:
+          'Grants the agent buy/sell execution on Arc: swap quotes, real swaps and balance reads through the authorized wallets.',
+        icon: '⚡',
+      },
+      {
+        id: 'market',
+        name: 'Market Data',
+        description:
+          'Live multi-source prices, candles and order books (Hyperliquid, Robinhood, Binance, Yahoo).',
+        icon: '📊',
+      },
+      {
+        id: 'wallet-read',
+        name: 'Wallet Read',
+        description:
+          'Lets the agent see the wallet addresses the user authorized (metadata only, no secrets).',
+        icon: '👛',
+      },
+      {
+        id: 'info',
+        name: 'Information',
+        description:
+          'News feeds and the local Info Center so the agent can reason about headlines.',
+        icon: '📰',
+      },
+    ]
   })
 
   // Fan agent events out to every renderer window.

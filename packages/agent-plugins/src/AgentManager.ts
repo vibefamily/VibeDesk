@@ -29,6 +29,7 @@ import { createNewsTool } from './tools/newsTools'
 import { createInfoReadTool } from './tools/infoTools'
 import type { InfoStore } from './tools/infoTools'
 import { createWalletReadTool } from './tools/walletTools'
+import { createTradeTools, type TradeExecutor } from './tools/tradeTools'
 import type { WalletReadAccess } from './tools/walletTools'
 import { analyzeStock } from './analysis/ruleAnalyst'
 import type { StockAnalysis } from './analysis/ruleAnalyst'
@@ -74,6 +75,8 @@ export interface AgentInstanceView {
   dataSources: string[]
   /** Authorized wallet keys this agent may read (walletId:index, empty = none). */
   walletAuths: string[]
+  /** Enabled skill ids for this agent (e.g. 'trade-execute'). */
+  skills: string[]
   /** Whether a desktop shortcut should be shown on the VibeDesk home desktop. */
   desktopIcon: boolean
   /**
@@ -147,11 +150,14 @@ export interface AgentManagerOptions {
    *  Isolated under userData so pi never touches ~/.pi or the repo. */
   piAgentDir?: string
   /**
-   * Enabled tool-set skill ids ('market' | 'wallet-read' | 'info').
-   * Controls which VibeDesk tools become pi customTools. When omitted,
-   * every built-in tool-set is enabled (backward compatible).
+   * Enabled tool-set skill ids ('market' | 'wallet-read' | 'info' |
+   * 'trade-execute'). Controls which VibeDesk tools become pi
+   * customTools. When omitted, every built-in tool-set is enabled
+   * (backward compatible).
    */
   enabledToolsets?: string[]
+  /** Bridge for the trade-execute skill (real Arc swaps). Optional. */
+  tradeExecutor?: TradeExecutor
 }
 
 export class AgentManager {
@@ -167,6 +173,7 @@ export class AgentManager {
   private saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private piAgentDir?: string
   private enabledToolsets?: string[]
+  private tradeExecutor?: TradeExecutor
 
   constructor(options: AgentManagerOptions) {
     this.market = options.market
@@ -174,6 +181,7 @@ export class AgentManager {
     this.infoStore = options.infoStore
     this.piAgentDir = options.piAgentDir
     this.enabledToolsets = options.enabledToolsets
+    this.tradeExecutor = options.tradeExecutor
     if (options.storage) {
       this.storage = options.storage
     } else if (options.agentsDir) {
@@ -410,6 +418,7 @@ export class AgentManager {
               : [],
             dataSources: Array.isArray(view.dataSources) ? view.dataSources : [],
             walletAuths: Array.isArray(view.walletAuths) ? view.walletAuths : [],
+            skills: Array.isArray(view.skills) ? view.skills : [],
             desktopIcon: view.desktopIcon === true,
           },
           agent: null,
@@ -438,6 +447,7 @@ export class AgentManager {
       symbols?: string[]
       dataSources?: string[]
       walletAuths?: string[]
+      skills?: string[]
       desktopIcon?: boolean
     } = {},
   ): AgentInstanceView {
@@ -467,6 +477,7 @@ export class AgentManager {
       messages: [],
       dataSources: options.dataSources ?? [],
       walletAuths: options.walletAuths ?? [],
+      skills: options.skills ?? [],
       desktopIcon: options.desktopIcon ?? false,
     }
 
@@ -512,18 +523,24 @@ export class AgentManager {
       view.name,
       view.model ?? this.llmProvider!.getConfig().model,
     )
-    const enabled = this.enabledToolsets ?? ['market', 'wallet-read', 'info']
+    const enabled = new Set([
+      ...(this.enabledToolsets ?? ['market', 'wallet-read', 'info']),
+      ...(view.skills ?? []),
+    ])
     const tools = [
-      ...(enabled.includes('market')
+      ...(enabled.has('market')
         ? createMarketTools(new ScopedMarket(this.market, view.dataSources))
         : []),
-      ...(enabled.includes('wallet-read') && this.walletAccess
+      ...(enabled.has('wallet-read') && this.walletAccess
         ? [createWalletReadTool(new ScopedWalletAccess(this.walletAccess, view.walletAuths))]
         : []),
-      ...(enabled.includes('info') && this.infoStore
+      ...(enabled.has('info') && this.infoStore
         ? [createInfoReadTool(this.infoStore)]
         : []),
-      ...(enabled.includes('info') ? [createNewsTool()] : []),
+      ...(enabled.has('info') ? [createNewsTool()] : []),
+      ...(enabled.has('trade-execute') && this.tradeExecutor
+        ? createTradeTools(this.tradeExecutor)
+        : []),
     ]
     // LLM path runs on the pi agent harness (openclaw's engine): persistent
     // AgentSession, professional tool calling, skills-ready. The legacy ReAct
@@ -608,6 +625,15 @@ export class AgentManager {
     const managed = this.agents.get(id)
     if (!managed) return
     managed.view.walletAuths = [...new Set(walletAuths)]
+    if (this.llmProvider) managed.agent = this.buildAgent(managed)
+    this.persist(id)
+  }
+
+  /** Enable/disable skills for an agent (e.g. 'trade-execute'). */
+  setSkills(id: string, skills: string[]): void {
+    const managed = this.agents.get(id)
+    if (!managed) return
+    managed.view.skills = [...new Set(skills)]
     if (this.llmProvider) managed.agent = this.buildAgent(managed)
     this.persist(id)
   }

@@ -41,19 +41,26 @@ const AgentConfigPanel: React.FC<{
   agentId: string
   initialDataSources: string[]
   initialWalletAuths: string[]
+  initialSkills?: string[]
   onSaved?: () => void
-}> = ({ agentId, initialDataSources, initialWalletAuths, onSaved }) => {
-  const { agents, dataSources, setDataSourceAuth, setWalletAuth, listProviders, activateProvider, getLlmConfig, setAgentModel } = useAgentStore()
+}> = ({ agentId, initialDataSources, initialWalletAuths, initialSkills, onSaved }) => {
+  const { agents, dataSources, setDataSourceAuth, setWalletAuth, setSkills, listProviders, activateProvider, getLlmConfig, setAgentModel } = useAgentStore()
   const authorizedWallets = useWalletStore((s) => s.authorized)
   const walletMetas = useWalletStore((s) => s.wallets)
 
   const [dsSel, setDsSel] = useState<string[]>(initialDataSources)
   const [waSel, setWaSel] = useState<string[]>(initialWalletAuths)
+  const [skillSel, setSkillSel] = useState<string[]>(initialSkills ?? [])
+  const [skillCatalog, setSkillCatalog] = useState<{ id: string; name: string; description: string; icon: string }[]>([])
   const [authSaved, setAuthSaved] = useState(false)
   const [providers, setProviders] = useState<ProviderView[]>([])
   const [modelInfo, setModelInfo] = useState<string>('')
   const [modelInput, setModelInput] = useState<string>('')
   const [modelSaved, setModelSaved] = useState(false)
+
+  useEffect(() => {
+    window.vibeAPI.agent.listSkills().then(setSkillCatalog).catch(() => setSkillCatalog([]))
+  }, [])
 
   // Reflect the effective model for this agent: its own override, else the
   // active provider's default (Settings -> AI Models).
@@ -260,6 +267,50 @@ const AgentConfigPanel: React.FC<{
               {o.label}
             </label>
           ))}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000', margin: '8px 0 4px' }}>
+        Skills
+      </div>
+      {skillCatalog.length === 0 ? (
+        <div style={{ fontSize: 10, color: '#666' }}>No skills registered.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {skillCatalog.map((s) => (
+            <label
+              key={s.id}
+              style={{
+                fontSize: 11,
+                color: '#000',
+                display: 'flex',
+                gap: 4,
+                alignItems: 'center',
+              }}
+              title={s.description}
+            >
+              <input
+                type="checkbox"
+                checked={skillSel.includes(s.id)}
+                onChange={async (e) => {
+                  const on = e.target.checked
+                  const next = on
+                    ? [...skillSel, s.id]
+                    : skillSel.filter((x) => x !== s.id)
+                  setSkillSel(next)
+                  try {
+                    await setSkills(agentId, next)
+                  } catch (err) {
+                    setSkillSel(skillSel)
+                    console.error('failed to set skills', err)
+                  }
+                }}
+              />
+              {s.icon} {s.name}
+            </label>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>
+        Skills add capabilities, e.g. Trade Execute lets the agent run real swaps.
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <button
