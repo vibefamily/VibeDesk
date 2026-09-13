@@ -202,7 +202,10 @@ const ChatCenter: React.FC = () => {
       {mode !== 'llm' && (
         <div style={{ ...OUTSET, padding: 6, fontSize: 10 }}>
           ⏸ Rule mode — chat needs an LLM key.{' '}
-          <button style={{ ...BTN, padding: '2px 8px' }} onClick={() => openWindow('settings', 'Settings', '⚙️')}>
+          <button
+            style={{ ...BTN, padding: '2px 8px' }}
+            onClick={() => openWindow('settings', 'Settings', '⚙️', { width: 820, height: 660 })}
+          >
             Open Settings
           </button>
         </div>
