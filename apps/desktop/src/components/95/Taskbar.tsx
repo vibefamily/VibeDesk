@@ -29,9 +29,9 @@ export const START_MENU: {
   {
     group: 'Agent',
     items: [
-      { key: 'agent-chat', label: 'Agent', icon: '💬', title: 'Agent - Chat with your default agent' },
+      { key: 'agent-chat', label: 'Chat Agent', icon: '💬', title: 'Chat Agent - Talk with your default agent' },
+      { key: 'trade-run', label: 'Trade Agent', icon: '🔄', title: 'Trade Agent - Signal to On-chain Execution' },
       { key: 'agents', label: 'Agent Manager', icon: '🤖', title: 'Agent Manager - Create, chat & manage agents' },
-      { key: 'trade-run', label: 'Agent Trade Run', icon: '🔄', title: 'Agent Trade Run - Signal to On-chain Execution' },
     ],
   },
   {

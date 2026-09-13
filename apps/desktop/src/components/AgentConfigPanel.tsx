@@ -43,7 +43,7 @@ const AgentConfigPanel: React.FC<{
   initialWalletAuths: string[]
   onSaved?: () => void
 }> = ({ agentId, initialDataSources, initialWalletAuths, onSaved }) => {
-  const { agents, dataSources, setDataSourceAuth, setWalletAuth, listProviders, getLlmConfig, setAgentModel } = useAgentStore()
+  const { agents, dataSources, setDataSourceAuth, setWalletAuth, listProviders, activateProvider, getLlmConfig, setAgentModel } = useAgentStore()
   const authorizedWallets = useWalletStore((s) => s.authorized)
   const walletMetas = useWalletStore((s) => s.wallets)
 
@@ -83,6 +83,21 @@ const AgentConfigPanel: React.FC<{
       ? activeProvider.models
       : COMMON_MODELS
 
+  // Fixed display order: Hyperliquid first, Yahoo last, Robinhood hidden,
+  // Arc shown but disabled until its mainnet goes live.
+  const DS_ORDER: { id: string; label: string; disabled?: boolean; disabledHint?: string }[] = [
+    { id: 'hyperliquid', label: 'Hyperliquid' },
+    { id: 'binance', label: 'Binance' },
+    { id: 'arc', label: 'Arc', disabled: true, disabledHint: 'Arc mainnet is not live yet' },
+    { id: 'yahoo', label: 'Yahoo Finance' },
+  ]
+  const orderedSources: { id: string; label: string; disabled?: boolean; disabledHint?: string }[] = [
+    ...DS_ORDER.filter((d) => dataSources.includes(d.id)),
+    ...dataSources
+      .filter((ds) => ds !== 'robinhood' && !DS_ORDER.some((d) => d.id === ds))
+      .map((ds) => ({ id: ds, label: ds })),
+  ]
+
   return (
     <div
       style={{
@@ -96,71 +111,69 @@ const AgentConfigPanel: React.FC<{
         AI model
       </div>
       <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>{modelInfo}</div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-        <select
-          value={modelOptions.includes(modelInput) ? modelInput : ''}
-          onChange={(e) => {
-            if (e.target.value) setModelInput(e.target.value)
-          }}
-          style={{
-            flex: 1,
-            fontSize: 11,
-            background: '#fff',
-            border: '2px inset',
-            borderColor: '#808080 #fff #fff #808080',
-            color: '#000',
-          }}
-        >
-          <option value="">Provider models…</option>
-          {modelOptions.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-        <input
-          value={modelInput}
-          onChange={(e) => setModelInput(e.target.value)}
-          placeholder="or type a model id"
-          style={{
-            flex: 2,
-            fontSize: 11,
-            background: '#fff',
-            border: '2px inset',
-            borderColor: '#808080 #fff #fff #808080',
-            color: '#000',
-            padding: '2px 4px',
-          }}
-        />
-        <button
-          style={{
-            padding: '2px 8px',
-            fontSize: 11,
-            background: '#c0c0c0',
-            border: '2px outset',
-            borderColor: '#fff #808080 #808080 #fff',
-            cursor: 'pointer',
-            color: '#000',
-          }}
-          onClick={async () => {
-            const m = modelInput.trim()
-            setModelSaved(false)
-            try {
-              await setAgentModel({ id: agentId, model: m })
-              setModelInfo(m ? `${m} · saved for this agent` : 'Provider default · saved')
-              setModelSaved(true)
-            } catch (err) {
-              setModelInfo(err instanceof Error ? err.message : String(err))
-            }
-          }}
-        >
-          Apply
-        </button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: '#000', marginBottom: 2 }}>Provider</div>
+          <select
+            value={activeProvider?.id ?? ''}
+            onChange={(e) => {
+              const id = e.target.value
+              if (!id) return
+              void activateProvider(id).then(() => listProviders().then(setProviders))
+            }}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              fontSize: 11,
+              background: '#fff',
+              border: '2px solid #808080',
+              color: '#000',
+            }}
+          >
+            <option value="">No provider…</option>
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.active ? ' (active)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: '#000', marginBottom: 2 }}>Model</div>
+          <select
+            value={modelOptions.includes(modelInput) ? modelInput : ''}
+            onChange={async (e) => {
+              const m = e.target.value
+              setModelInput(m)
+              try {
+                await setAgentModel({ id: agentId, model: m })
+                setModelInfo(m ? `${m} · saved for this agent` : 'Provider default · saved')
+              } catch (err) {
+                setModelInfo(err instanceof Error ? err.message : String(err))
+              }
+            }}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              fontSize: 11,
+              background: '#fff',
+              border: '2px solid #808080',
+              color: '#000',
+            }}
+          >
+            <option value="">Provider default</option>
+            {modelOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       {modelSaved && (
         <div style={{ fontSize: 10, color: '#006600', marginBottom: 4 }}>
-          Model updated for this agent - next messages use it. Leave the field empty and Apply to
-          fall back to the provider default.
+          Model updated for this agent - next messages use it.
         </div>
       )}
 
@@ -171,18 +184,30 @@ const AgentConfigPanel: React.FC<{
         <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>No sources registered.</div>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
-        {dataSources.map((ds) => (
-          <label key={ds} style={{ fontSize: 11, color: '#000', display: 'flex', gap: 4, alignItems: 'center' }}>
+        {orderedSources.map((ds) => (
+          <label
+            key={ds.id}
+            style={{
+              fontSize: 11,
+              color: ds.disabled ? '#808080' : '#000',
+              display: 'flex',
+              gap: 4,
+              alignItems: 'center',
+            }}
+            title={ds.disabled ? ds.disabledHint : undefined}
+          >
             <input
               type="checkbox"
-              checked={dsSel.includes(ds)}
+              disabled={ds.disabled}
+              checked={ds.disabled ? false : dsSel.includes(ds.id)}
               onChange={(e) => {
                 setDsSel((prev) =>
-                  e.target.checked ? [...prev, ds] : prev.filter((x) => x !== ds),
+                  e.target.checked ? [...prev, ds.id] : prev.filter((x) => x !== ds.id),
                 )
               }}
             />
-            {ds}
+            {ds.label}
+            {ds.disabled && <span style={{ fontSize: 9 }}>(soon)</span>}
           </label>
         ))}
       </div>
