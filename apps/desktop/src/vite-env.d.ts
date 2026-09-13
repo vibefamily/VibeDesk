@@ -300,6 +300,20 @@ interface MarketApiType {
     from?: number
     to?: number
   }) => Promise<HistorySeriesApiType[]>
+  candles: (args: {
+    symbol: string
+    timeframe: string
+    limit?: number
+  }) => Promise<CandleApiType[]>
+}
+
+interface CandleApiType {
+  timestamp: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
 }
 
 interface HistorySeriesApiType {

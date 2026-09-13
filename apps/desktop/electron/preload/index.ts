@@ -237,6 +237,8 @@ const vibeAPI = {
       from?: number
       to?: number
     }) => ipcRenderer.invoke('market:history', args),
+    candles: (args: { symbol: string; timeframe: string; limit?: number }) =>
+      ipcRenderer.invoke('market:candles', args),
   },
 
   // Info Center (M3): multi-source news/tweet pulls

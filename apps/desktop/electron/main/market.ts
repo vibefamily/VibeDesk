@@ -11,6 +11,7 @@
 import { ipcMain, webContents } from 'electron'
 import { createDefaultDataSources } from '@vibe/data-sources'
 import type { DefaultDataSources } from '@vibe/data-sources'
+import type { Timeframe } from '@vibe/core'
 import { DEFAULT_STOCK_TICKERS } from '@vibe/shared'
 import type { TickData } from '@vibe/shared'
 import { StockHistoryDb } from './db/stockHistory'
@@ -167,6 +168,24 @@ export function setupMarketIpc(): void {
     broadcast(snap)
     return snap
   })
+
+  // K-lines for the Trade Agent chart (Binance public candles, crypto).
+  ipcMain.handle(
+    'market:candles',
+    async (_e, args: { symbol: string; timeframe: string; limit?: number }) => {
+      try {
+        const agg = await getMarketAggregator()
+        const binance = agg.getProvider('binance')
+        if (!binance) return []
+        return await binance.getCandles(args.symbol, args.timeframe as Timeframe, {
+          limit: Math.min(args.limit ?? 180, 1000),
+        })
+      } catch {
+        // A chart failure just yields an empty series this round.
+        return []
+      }
+    },
+  )
 
   if (!pollTimer) {
     pollTimer = setInterval(() => {
