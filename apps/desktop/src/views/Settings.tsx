@@ -391,8 +391,7 @@ const LlmSettings: React.FC = () => {
   }
 
   const inputStyle: React.CSSProperties = {
-    flex: '1 1 auto',
-    minWidth: 0,
+    width: '100%',
     boxSizing: 'border-box',
     fontSize: 11,
     fontFamily: 'inherit',
@@ -402,6 +401,13 @@ const LlmSettings: React.FC = () => {
     borderColor: '#808080 #fff #fff #808080',
     padding: '3px 5px',
   }
+  /** Field layout: label above, control below, full column width. */
+  const field = (labelText: string, control: React.ReactNode) => (
+    <div>
+      <div style={{ fontSize: 11, color: '#000', marginBottom: 2 }}>{labelText}</div>
+      {control}
+    </div>
+  )
   const btn: React.CSSProperties = {
     fontSize: 11,
     background: '#c0c0c0',
@@ -468,81 +474,79 @@ const LlmSettings: React.FC = () => {
           <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000' }}>
             {editing ? `Edit provider - ${editing.name}` : 'Add provider'}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 14px', alignItems: 'start' }}>
-            <div>
-              {!editing && (
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: '#000', width: 90 }}>Preset</span>
-                  <select
-                    value={fName}
-                    onChange={(e) => applyPreset(e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
-                  >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 14px', alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {!editing &&
+                field(
+                  'Preset',
+                  <select value={fName} onChange={(e) => applyPreset(e.target.value)} style={inputStyle}>
                     {PRESETS.map((p) => (
                       <option key={p.name} value={p.name}>{p.name}</option>
                     ))}
-                  </select>
-                </div>
+                  </select>,
+                )}
+              {field(
+                'Name',
+                <input value={fName} onChange={(e) => setFName(e.target.value)} style={inputStyle} />,
               )}
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>Name</span>
-                <input value={fName} onChange={(e) => setFName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>API</span>
-                <select
-                  value={fApi}
-                  onChange={(e) => setFApi(e.target.value as ProviderApi)}
-                  style={{ ...inputStyle, flex: 1 }}
-                >
+              {field(
+                'API',
+                <select value={fApi} onChange={(e) => setFApi(e.target.value as ProviderApi)} style={inputStyle}>
                   <option value="openai-completions">OpenAI-compatible (also Ollama)</option>
                   <option value="anthropic-messages">Anthropic Messages</option>
                   <option value="google-generative-ai">Google Gemini</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>Base URL</span>
+                </select>,
+              )}
+              {field(
+                'Base URL',
                 <input
                   value={fBaseUrl}
                   onChange={(e) => setFBaseUrl(e.target.value)}
                   placeholder="https://…"
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-              </div>
+                  style={inputStyle}
+                />,
+              )}
             </div>
-            <div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>API key</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {field(
+                'API key',
                 <input
                   type="password"
                   value={fApiKey}
                   onChange={(e) => setFApiKey(e.target.value)}
                   placeholder={editing ? 'Leave empty to keep the saved key' : 'sk-…'}
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>Models</span>
+                  style={inputStyle}
+                />,
+              )}
+              {field(
+                'Models',
                 <input
                   value={fModels}
                   onChange={(e) => setFModels(e.target.value)}
                   placeholder="comma separated, e.g. gpt-4o, gpt-4o-mini"
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>Default model</span>
+                  style={inputStyle}
+                />,
+              )}
+              {field(
+                'Default model',
                 <input
                   value={fModel}
                   onChange={(e) => setFModel(e.target.value)}
                   placeholder="default for this provider"
-                  style={{ ...inputStyle, flex: 1 }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: '#000', width: 90 }}>Activate</span>
-                <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} style={{ width: 16, height: 16 }} />
-                <span style={{ fontSize: 10, color: '#333' }}>Route agents through this provider now</span>
+                  style={inputStyle}
+                />,
+              )}
+              <div>
+                <div style={{ fontSize: 11, color: '#000', marginBottom: 2 }}>Activate</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#333', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={fActive}
+                    onChange={(e) => setFActive(e.target.checked)}
+                    style={{ width: 15, height: 15 }}
+                  />
+                  Route agents through this provider now
+                </label>
               </div>
             </div>
           </div>
