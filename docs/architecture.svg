@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="860" viewBox="0 0 1280 860" font-family="'MS Sans Serif','Segoe UI',Arial,sans-serif">
+  <defs>
+    <style>
+      .title { font-size: 24px; font-weight: bold; fill: #000080; }
+      .sub { font-size: 13px; fill: #333; }
+      .layer-title { font-size: 15px; font-weight: bold; fill: #fff; }
+      .box-title { font-size: 13px; font-weight: bold; fill: #000; }
+      .box-text { font-size: 11px; fill: #222; }
+      .small { font-size: 10px; fill: #444; }
+      .chain { font-size: 12px; font-weight: bold; fill: #fff; }
+      .arrow-label { font-size: 10px; font-weight: bold; fill: #000080; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="860" fill="#008080"/>
+
+  <!-- Title -->
+  <text x="40" y="42" class="title">VibeDesk — Your Local Trading Agent OS</text>
+  <text x="40" y="64" class="sub" fill="#e8f6f6">Data + AI + Wallet = Auto Trading · local-first · agent proposes, human disposes</text>
+
+  <!-- ============ LAYER 1: Renderer (React95 desktop) ============ -->
+  <rect x="40" y="84" width="1200" height="150" rx="4" fill="#c0c0c0" stroke="#fff" stroke-width="2"/>
+  <rect x="40" y="84" width="1200" height="26" rx="4" fill="#000080"/>
+  <text x="52" y="102" class="layer-title">RENDERER — React95 Desktop (Electron renderer)</text>
+
+  <!-- Data Center -->
+  <rect x="60" y="120" width="270" height="100" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="72" y="140" class="box-title">📊 Data Center</text>
+  <text x="72" y="158" class="box-text">Markets · multi-source prices</text>
+  <text x="72" y="174" class="box-text">Trade Run (signal→execution)</text>
+  <text x="72" y="190" class="box-text">News &amp; tweet feeds · sources</text>
+  <text x="72" y="206" class="small">price history charts (SVG + SQLite)</text>
+
+  <!-- Agent -->
+  <rect x="350" y="120" width="270" height="100" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="362" y="140" class="box-title">🤖 AI Agent</text>
+  <text x="362" y="158" class="box-text">Multi-agent desktop + chat</text>
+  <text x="362" y="174" class="box-text">Agent Manager · templates</text>
+  <text x="362" y="190" class="box-text">Skills &amp; tool authorizations</text>
+  <text x="362" y="206" class="small">per-agent context (SQLite)</text>
+
+  <!-- Wallet -->
+  <rect x="640" y="120" width="270" height="100" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="652" y="140" class="box-title">👛 Wallet Manager</text>
+  <text x="652" y="158" class="box-text">Local multi-wallet vault</text>
+  <text x="652" y="174" class="box-text">HD mnemonic · private keys</text>
+  <text x="652" y="190" class="box-text">AES-encrypted, MetaMask-style</text>
+  <text x="652" y="206" class="small">grant agent access per wallet</text>
+
+  <!-- Settings -->
+  <rect x="930" y="120" width="290" height="100" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="942" y="140" class="box-title">⚙️ Settings</text>
+  <text x="942" y="158" class="box-text">AI models (OpenAI-compatible / Ollama)</text>
+  <text x="942" y="174" class="box-text">Arc network switcher (testnet/mainnet)</text>
+  <text x="942" y="190" class="box-text">UI scale · data source keys</text>
+  <text x="942" y="206" class="small">start menu entry (not on desktop)</text>
+
+  <!-- ============ LAYER 2: Main process ============ -->
+  <rect x="40" y="258" width="1200" height="300" rx="4" fill="#d4d0c8" stroke="#808080" stroke-width="2"/>
+  <rect x="40" y="258" width="1200" height="26" rx="4" fill="#404040"/>
+  <text x="52" y="276" class="layer-title">ELECTRON MAIN PROCESS — node, secrets stay here</text>
+
+  <!-- Market aggregator -->
+  <rect x="60" y="296" width="340" height="128" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="72" y="316" class="box-title">📡 Market Data Aggregator</text>
+  <text x="72" y="336" class="box-text">Robinhood · Yahoo · Hyperliquid · Binance</text>
+  <text x="72" y="354" class="box-text">live ticks → price history</text>
+  <text x="72" y="372" class="box-text">SQLite (sql.js WASM): market/stock-history.db</text>
+  <text x="72" y="392" class="box-text">Chain Analytics (planned): db/chain/events.db</text>
+  <text x="72" y="410" class="small">IPC: market:tick · market:history</text>
+
+  <!-- Agent manager -->
+  <rect x="420" y="296" width="340" height="128" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="432" y="316" class="box-title">🤖 Agent Manager (multi-agent)</text>
+  <text x="432" y="336" class="box-text">rule mode: deterministic analysis</text>
+  <text x="432" y="354" class="box-text">llm mode: ReAct + tools + chat</text>
+  <text x="432" y="372" class="box-text">structured 'analysis' events → Trade Run</text>
+  <text x="432" y="392" class="box-text">per-agent context SQLite (db/agents/*.db)</text>
+  <text x="432" y="410" class="small">skills: market · wallet-read · news · info</text>
+
+  <!-- Wallet vault -->
+  <rect x="780" y="296" width="340" height="128" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="792" y="316" class="box-title">🔐 Wallet Vault (AES-encrypted)</text>
+  <text x="792" y="336" class="box-text">HD wallets · imported keys · db/vault.db</text>
+  <text x="792" y="354" class="box-text">unlock password → in-memory key cache</text>
+  <text x="792" y="374" class="box-text" font-weight="bold">getAuthorizedKey(walletId)</text>
+  <text x="792" y="392" class="box-text">private key never leaves main process</text>
+  <text x="792" y="410" class="small">grant agent read access per wallet</text>
+
+  <!-- Arc module -->
+  <rect x="60" y="436" width="1060" height="108" fill="#fff" stroke="#808080" stroke-width="1"/>
+  <text x="72" y="456" class="box-title">🦄 Arc Module — Uniswap v4 execution (networks.ts: testnet verified / mainnet placeholders)</text>
+  <text x="72" y="478" class="box-text">V4 Quoter quote (fees included) → Permit2 approvals (sell: token→Permit2 + Permit2→Router) → Universal Router calldata → local sign → broadcast</text>
+  <text x="72" y="498" class="box-text">swap receipts + explorer links · balances · gas = native USDC</text>
+  <text x="72" y="520" class="small">arc:quote · arc:swap · arc:waitReceipt · arc:getNetwork / arc:setNetwork</text>
+
+  <!-- Auth boundary -->
+  <rect x="1140" y="436" width="100" height="108" fill="#ffd" stroke="#808080" stroke-width="1"/>
+  <text x="1152" y="458" class="box-title" font-size="11">AUTH</text>
+  <text x="1152" y="476" class="small" font-size="9">agent only</text>
+  <text x="1152" y="490" class="small" font-size="9">reads</text>
+  <text x="1152" y="504" class="small" font-size="9">authorized</text>
+  <text x="1152" y="518" class="small" font-size="9">wallets</text>
+
+  <!-- ============ LAYER 3: Onchain ============ -->
+  <rect x="40" y="582" width="1200" height="150" rx="4" fill="#0a3a5c" stroke="#fff" stroke-width="2"/>
+  <rect x="40" y="582" width="1200" height="26" rx="4" fill="#0a3a5c"/>
+  <text x="52" y="600" class="layer-title" fill="#fff">ONCHAIN — Arc (gas = native USDC)</text>
+
+  <rect x="60" y="616" width="460" height="100" fill="#0e4a74" stroke="#7fb3d5" stroke-width="1"/>
+  <text x="72" y="638" class="chain">Arc Testnet (5042002) — live ✅</text>
+  <text x="72" y="658" class="small" fill="#cfe8f7">rpc.testnet.arc.network · testnet.arcscan.app</text>
+  <text x="72" y="676" class="small" fill="#cfe8f7">Minara Uniswap v4: Permit2 · PoolManager · StateView</text>
+  <text x="72" y="694" class="small" fill="#cfe8f7">V4 Quoter · Universal Router (verified)</text>
+
+  <rect x="560" y="616" width="460" height="100" fill="#0e4a74" stroke="#7fb3d5" stroke-width="1"/>
+  <text x="572" y="638" class="chain">Arc Mainnet — planned (by 9-30) 🔜</text>
+  <text x="572" y="658" class="small" fill="#cfe8f7">RPC / chainId / explorer: placeholder</text>
+  <text x="572" y="676" class="small" fill="#cfe8f7">Minara or official v4 deployment: placeholder</text>
+  <text x="572" y="694" class="small" fill="#cfe8f7">real small USDC swap = +$2,500 × 2 (hackathon)</text>
+
+  <rect x="1040" y="616" width="180" height="100" fill="#0e4a74" stroke="#7fb3d5" stroke-width="1"/>
+  <text x="1052" y="638" class="chain" font-size="11">USDC</text>
+  <text x="1052" y="658" class="small" fill="#cfe8f7">native currency</text>
+  <text x="1052" y="676" class="small" fill="#cfe8f7">18 decimals</text>
+  <text x="1052" y="694" class="small" fill="#cfe8f7">settlement</text>
+
+  <!-- ============ Flow arrows ============ -->
+  <!-- renderer -> main -->
+  <line x1="500" y1="234" x2="500" y2="258" stroke="#000080" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="775" y1="234" x2="775" y2="258" stroke="#000080" stroke-width="2"/>
+  <text x="480" y="250" class="arrow-label" font-size="10">IPC (contextBridge)</text>
+
+  <!-- main -> onchain -->
+  <line x1="300" y1="544" x2="300" y2="582" stroke="#000080" stroke-width="2"/>
+  <line x1="760" y1="544" x2="760" y2="582" stroke="#000080" stroke-width="2"/>
+  <text x="480" y="568" class="arrow-label">sign + broadcast (viem)</text>
+
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#000080"/>
+    </marker>
+  </defs>
+</svg>
