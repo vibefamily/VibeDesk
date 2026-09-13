@@ -136,10 +136,17 @@ export function setupMarketIpc(): void {
   ipcMain.handle('market:getState', async () => {
     const ds = await getMarketDataSources()
     const manifests = ds.registry.list().map((e) => e.manifest)
-    // Kick off an immediate snapshot round; prices stream in over
-    // 'market:ticks' within a few seconds.
-    void pollOnce()
-    return { ready: true, manifests, ticks: {}, unavailable: {}, lastUpdated: Date.now() }
+    // Return the current live snapshot immediately (do not rely on the
+    // next 15s broadcast) so a freshly opened Data Center shows prices
+    // right away; ticks keep streaming in over 'market:ticks'.
+    const snap = await takeSnapshot().catch(() => null)
+    return {
+      ready: true,
+      manifests,
+      ticks: snap?.ticks ?? {},
+      unavailable: snap?.unavailable ?? {},
+      lastUpdated: snap?.lastUpdated ?? Date.now(),
+    }
   })
 
   ipcMain.handle(
