@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron'
-import renderer from 'vite-plugin-electron-renderer'
 import path from 'node:path'
 
 export default defineConfig({
@@ -17,7 +16,9 @@ export default defineConfig({
             rollupOptions: {
               // WASM module with a locateFile hook: keep it external so it
               // resolves sql-wasm.wasm from node_modules at runtime.
-              external: ['sql.js'],
+              // The pi agent harness packages are pure ESM and are loaded
+              // from node_modules at runtime too (Electron main is ESM).
+              external: ['sql.js', '@earendil-works/pi-agent-core', '@earendil-works/pi-ai', '@earendil-works/pi-coding-agent', '@earendil-works/pi-server', '@earendil-works/pi-tui'],
             },
           },
         },
@@ -41,7 +42,6 @@ export default defineConfig({
         },
       },
     ]),
-    renderer(),
   ],
   resolve: {
     alias: {

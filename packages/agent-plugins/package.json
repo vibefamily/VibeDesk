@@ -18,9 +18,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@vibe/shared": "workspace:*",
+    "@earendil-works/pi-agent-core": "0.85.0",
+    "@earendil-works/pi-ai": "0.85.0",
+    "@earendil-works/pi-coding-agent": "0.85.0",
+    "@earendil-works/pi-server": "0.85.0",
+    "@earendil-works/pi-tui": "0.85.0",
     "@vibe/core": "workspace:*",
-    "@vibe/strategy-engine": "workspace:*"
+    "@vibe/shared": "workspace:*",
+    "@vibe/strategy-engine": "workspace:*",
+    "typebox": "^1.3.30"
   },
   "devDependencies": {
     "typescript": "^5.4.0"

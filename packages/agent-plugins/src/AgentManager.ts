@@ -16,6 +16,7 @@ import { MarketDataAggregator } from '@vibe/core'
 import { generateId } from '@vibe/shared/utils'
 import type { CandleData, OrderBookData, TickData } from '@vibe/shared'
 import { Agent } from './runtime/Agent'
+import { PiAgent } from './runtime/PiAgent'
 import type { AgentConfig, LLMProvider } from './runtime/types'
 import type { AgentTemplate } from './templates'
 import { BUILTIN_TEMPLATES } from './templates'
@@ -88,7 +89,7 @@ type Listener = (event: AgentManagerEvent) => void
 interface ManagedAgent {
   template: AgentTemplate
   view: AgentInstanceView
-  agent: Agent | null
+  agent: Agent | PiAgent | null
   timer: ReturnType<typeof setInterval> | null
   symbols: string[]
   running: boolean
@@ -109,6 +110,9 @@ export interface AgentManagerOptions {
   /** Directory to persist agent instances (M5) - shorthand that builds a
    *  JsonFileAgentStorage. When omitted, agents stay in-memory only. */
   agentsDir?: string
+  /** Directory for the pi agent harness (settings + session artifacts).
+   *  Isolated under userData so pi never touches ~/.pi or the repo. */
+  piAgentDir?: string
 }
 
 export class AgentManager {
@@ -121,11 +125,13 @@ export class AgentManager {
   private llmProvider: OpenAICompatibleProvider | null = null
   private storage: AgentStorage | null = null
   private saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private piAgentDir?: string
 
   constructor(options: AgentManagerOptions) {
     this.market = options.market
     this.walletAccess = options.walletAccess
     this.infoStore = options.infoStore
+    this.piAgentDir = options.piAgentDir
     if (options.storage) {
       this.storage = options.storage
     } else if (options.agentsDir) {
@@ -320,10 +326,9 @@ export class AgentManager {
     return view
   }
 
-  private buildAgent(managed: ManagedAgent): Agent {
+  private buildAgent(managed: ManagedAgent): Agent | PiAgent {
     const { template, view } = managed
     const config: AgentConfig = template.buildConfig(view.id, view.name, this.llmProvider!.getConfig().model)
-    const agent = new Agent(config, this.llmProvider!)
     const tools = [
       ...createMarketTools(new ScopedMarket(this.market, view.dataSources)),
       ...(this.walletAccess
@@ -332,8 +337,20 @@ export class AgentManager {
       ...(this.infoStore ? [createInfoReadTool(this.infoStore)] : []),
       createNewsTool(),
     ]
-    agent.registerTools(tools)
-    agent.onEvent((event) => {
+    // LLM path runs on the pi agent harness (openclaw's engine): persistent
+    // AgentSession, professional tool calling, skills-ready. The legacy ReAct
+    // Agent stays in the repo as a reference, but is no longer constructed.
+    const piAgent = new PiAgent({
+      agentId: view.id,
+      agentName: view.name,
+      baseUrl: this.llmProvider!.getConfig().baseUrl,
+      apiKey: this.llmProvider!.getConfig().apiKey,
+      model: this.llmProvider!.getConfig().model,
+      systemPrompt: config.systemPrompt,
+      tools,
+      piAgentDir: this.piAgentDir ?? process.cwd(),
+    })
+    piAgent.onEvent((event) => {
       if (event.type === 'step') {
         const step = event.data as { type: string; content: string; timestamp: number }
         this.pushMessage(view.id, { kind: 'step', content: step.content, at: step.timestamp })
@@ -343,7 +360,7 @@ export class AgentManager {
         this.emit({ type: 'error', agentId: view.id, message: String(event.data), at: Date.now() })
       }
     })
-    return agent
+    return piAgent
   }
 
   /** Restrict the data sources this agent may query (empty = all). */
@@ -440,11 +457,31 @@ export class AgentManager {
 
   private async executeCycle(managed: ManagedAgent): Promise<string> {
     const { template, symbols } = managed
+    let output: string
     if (managed.agent) {
-      return managed.agent.run(template.buildPrompt(symbols))
+      output = await managed.agent.run(template.buildPrompt(symbols))
+    } else {
+      // Rule mode: deterministic analysis from live multi-source prices.
+      const parts: string[] = []
+      for (const symbol of symbols) {
+        let ticks = new Map<string, TickData>()
+        try {
+          ticks = await this.market.getTicksAll(symbol)
+        } catch {
+          ticks = new Map()
+        }
+        const analysis: StockAnalysis = analyzeStock(symbol, ticks)
+        // Emit the structured signal so the renderer can power the
+        // Agent Trade Run closed loop (signal -> intent -> execution).
+        managed.view.lastAnalysis = analysis
+        this.emit({ type: 'analysis', agentId: managed.view.id, analysis, at: Date.now() })
+        parts.push(formatAnalysis(analysis))
+      }
+      return parts.join('\n\n')
     }
-    // Rule mode: deterministic analysis from live multi-source prices.
-    const parts: string[] = []
+    // LLM mode: the pi agent produced a text recommendation. Emit the same
+    // structured analysis signal (computed from live prices) so the Trade
+    // Run pipeline has a signal card regardless of execution mode.
     for (const symbol of symbols) {
       let ticks = new Map<string, TickData>()
       try {
@@ -453,13 +490,10 @@ export class AgentManager {
         ticks = new Map()
       }
       const analysis: StockAnalysis = analyzeStock(symbol, ticks)
-      // Emit the structured signal so the renderer can power the
-      // Agent Trade Run closed loop (signal -> intent -> execution).
       managed.view.lastAnalysis = analysis
       this.emit({ type: 'analysis', agentId: managed.view.id, analysis, at: Date.now() })
-      parts.push(formatAnalysis(analysis))
     }
-    return parts.join('\n\n')
+    return output
   }
 
   stop(id: string): void {
@@ -477,6 +511,8 @@ export class AgentManager {
 
   remove(id: string): void {
     this.stop(id)
+    const managed = this.agents.get(id)
+    if (managed?.agent instanceof PiAgent) managed.agent.dispose()
     this.agents.delete(id)
     this.removePersisted(id)
   }
