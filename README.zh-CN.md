@@ -1,4 +1,6 @@
-# 你的本地交易 Agent 操作系统（Your Local Agent Trading OS）
+# 你的 Agent 交易操作系统（Your Agent Trading OS）
+
+> *本地 · 安全优先 · 开箱即用（Local · Security-first · Out of the box）*
 
 > *始于 ETH Global 2026（Build start from ETH Global 2026）*
 

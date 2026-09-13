@@ -1,10 +1,14 @@
-# Your Local Agent Trading OS
+# Your Agent Trading OS
+
+> *Local · Security-first · Out of the box*
 
 > *Build start from ETH Global 2026*
 
 > **Account (wallet or CEX key) + Data + AI = Agentic Trading**
 
-A local-first desktop app where your AI agents read live multi-source market data, analyze the news, and execute real on-chain trades through wallets you have pre-authorized — confirm each trade or let it auto-run. Your wallet keys stay encrypted on your machine; agents can only request signatures, never see keys. **Out of the box** — the agent runtime ships inside the app, no server to install or run yourself.
+A security-first desktop app where your AI agents read live multi-source market data, analyze the news, and execute real on-chain trades through wallets you have pre-authorized — confirm each trade or let it auto-run. Your wallet keys stay encrypted on your machine; agents can only request signatures, never see keys. 
+
+**Out of the box** — the agent runtime ships inside the app, no server to install or run yourself.
 
 ---
 
