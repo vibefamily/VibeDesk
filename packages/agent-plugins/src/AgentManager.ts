@@ -74,6 +74,11 @@ export interface AgentInstanceView {
   walletAuths: string[]
   /** Whether a desktop shortcut should be shown on the VibeDesk home desktop. */
   desktopIcon: boolean
+  /**
+   * pi session JSONL file (M7-3): persisted so the same pi conversation
+   * resumes across restarts. Null until the first pi run completes.
+   */
+  piSessionFile?: string | null
 }
 
 /** Events emitted by the AgentManager. */
@@ -113,6 +118,12 @@ export interface AgentManagerOptions {
   /** Directory for the pi agent harness (settings + session artifacts).
    *  Isolated under userData so pi never touches ~/.pi or the repo. */
   piAgentDir?: string
+  /**
+   * Enabled tool-set skill ids ('market' | 'wallet-read' | 'info').
+   * Controls which VibeDesk tools become pi customTools. When omitted,
+   * every built-in tool-set is enabled (backward compatible).
+   */
+  enabledToolsets?: string[]
 }
 
 export class AgentManager {
@@ -126,12 +137,14 @@ export class AgentManager {
   private storage: AgentStorage | null = null
   private saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private piAgentDir?: string
+  private enabledToolsets?: string[]
 
   constructor(options: AgentManagerOptions) {
     this.market = options.market
     this.walletAccess = options.walletAccess
     this.infoStore = options.infoStore
     this.piAgentDir = options.piAgentDir
+    this.enabledToolsets = options.enabledToolsets
     if (options.storage) {
       this.storage = options.storage
     } else if (options.agentsDir) {
@@ -329,13 +342,18 @@ export class AgentManager {
   private buildAgent(managed: ManagedAgent): Agent | PiAgent {
     const { template, view } = managed
     const config: AgentConfig = template.buildConfig(view.id, view.name, this.llmProvider!.getConfig().model)
+    const enabled = this.enabledToolsets ?? ['market', 'wallet-read', 'info']
     const tools = [
-      ...createMarketTools(new ScopedMarket(this.market, view.dataSources)),
-      ...(this.walletAccess
+      ...(enabled.includes('market')
+        ? createMarketTools(new ScopedMarket(this.market, view.dataSources))
+        : []),
+      ...(enabled.includes('wallet-read') && this.walletAccess
         ? [createWalletReadTool(new ScopedWalletAccess(this.walletAccess, view.walletAuths))]
         : []),
-      ...(this.infoStore ? [createInfoReadTool(this.infoStore)] : []),
-      createNewsTool(),
+      ...(enabled.includes('info') && this.infoStore
+        ? [createInfoReadTool(this.infoStore)]
+        : []),
+      ...(enabled.includes('info') ? [createNewsTool()] : []),
     ]
     // LLM path runs on the pi agent harness (openclaw's engine): persistent
     // AgentSession, professional tool calling, skills-ready. The legacy ReAct
@@ -349,6 +367,7 @@ export class AgentManager {
       systemPrompt: config.systemPrompt,
       tools,
       piAgentDir: this.piAgentDir ?? process.cwd(),
+      sessionFile: view.piSessionFile ?? null,
     })
     piAgent.onEvent((event) => {
       if (event.type === 'step') {
@@ -393,6 +412,21 @@ export class AgentManager {
     this.persist(id)
   }
 
+  /**
+   * Persist the pi session file pointer after a run so the same
+   * conversation resumes across restarts (M7-3).
+   */
+  private syncPiSessionFile(managed: ManagedAgent, id: string): void {
+    const agent = managed.agent
+    if (agent instanceof PiAgent) {
+      const sessionFile = agent.getSessionFile()
+      if (sessionFile && managed.view.piSessionFile !== sessionFile) {
+        managed.view.piSessionFile = sessionFile
+        this.persist(id)
+      }
+    }
+  }
+
   /** Run one analysis cycle now (used by start and manual triggers). */
   async runOnce(id: string): Promise<void> {
     const managed = this.agents.get(id)
@@ -408,6 +442,7 @@ export class AgentManager {
       managed.view.status = 'completed'
       this.emit({ type: 'status', agentId: id, status: 'completed', at: Date.now() })
       this.pushMessage(id, { kind: 'message', content: output, at: Date.now() })
+      this.syncPiSessionFile(managed, id)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       managed.view.status = 'error'
@@ -442,6 +477,7 @@ export class AgentManager {
       managed.view.lastMessage = output
       managed.view.status = 'completed'
       this.emit({ type: 'status', agentId: id, status: 'completed', at: Date.now() })
+      this.syncPiSessionFile(managed, id)
       return this.get(id)!
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

@@ -69,6 +69,9 @@ export async function setupAgentIpc(
     agentsDir: string
     /** Directory for the pi agent harness (settings + session artifacts). */
     piAgentDir: string
+    /** Enabled tool-set skill ids fed to pi customTools (M7-3).
+     *  Omit to enable every built-in tool-set. */
+    enabledToolsets?: string[]
     /** Resolve the Info Center manager (M3); enables the read_information tool. */
     infoStore?: () => InfoManager | null
   },
@@ -85,6 +88,7 @@ export async function setupAgentIpc(
     market,
     agentsDir: options.agentsDir,
     piAgentDir: options.piAgentDir,
+    enabledToolsets: options.enabledToolsets,
     ...(resolveInfo
       ? {
           infoStore: {

@@ -12,9 +12,10 @@
  * (OpenAI-compatible / Ollama), registered into pi's ModelRuntime.
  */
 
-import { ModelRuntime, createAgentSession, DefaultResourceLoader } from '@earendil-works/pi-coding-agent'
+import { ModelRuntime, createAgentSession, DefaultResourceLoader, SessionManager } from '@earendil-works/pi-coding-agent'
 import type { AgentEvent } from '@earendil-works/pi-agent-core'
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 import type {
   AgentEventType,
   AgentRunStatus,
@@ -42,6 +43,11 @@ export interface PiAgentOptions {
   tools: ToolDefinition[]
   /** Working directory + pi settings dir (isolated under userData). */
   piAgentDir: string
+  /**
+   * Session JSONL file to resume (persisted across restarts). When null,
+   * a fresh session is created and can be read back via getSessionFile().
+   */
+  sessionFile?: string | null
 }
 
 interface SessionLike {
@@ -57,6 +63,7 @@ interface SessionLike {
 export class PiAgent {
   readonly config: PiAgentOptions
   private session: SessionLike | null = null
+  private sessionManager: SessionManager | null = null
   private unsub: (() => void) | null = null
   private listeners = new Set<EventCallback>()
   private messages: ChatMessage[] = []
@@ -105,7 +112,7 @@ export class PiAgent {
     if (this.session) return
     if (this.initError) throw new Error(this.initError)
 
-    const { baseUrl, apiKey, model, agentId, agentName, systemPrompt, piAgentDir } = this.config
+    const { baseUrl, apiKey, model, agentId, agentName, systemPrompt, piAgentDir, sessionFile } = this.config
     try {
       const modelRuntime = await ModelRuntime.create({
         allowModelNetwork: false,
@@ -151,6 +158,15 @@ export class PiAgent {
       })
       await resourceLoader.reload()
 
+      // Per-agent session directory keeps every agent's history separate.
+      // Resume the persisted session file when one exists (cross-restart
+      // context continuity); otherwise start a fresh session.
+      const sessionDir = join(piAgentDir, 'sessions', agentId)
+      const sessionManager = sessionFile
+        ? SessionManager.open(sessionFile, sessionDir, piAgentDir)
+        : SessionManager.create(piAgentDir, sessionDir)
+      this.sessionManager = sessionManager
+
       const created = await createAgentSession({
         cwd: piAgentDir,
         agentDir: piAgentDir,
@@ -160,6 +176,7 @@ export class PiAgent {
         noTools: 'builtin',
         customTools: customTools as never,
         resourceLoader,
+        sessionManager,
       })
       this.session = created.session as unknown as SessionLike
       this.unsub = this.session.agent.subscribe((event) => this.handlePiEvent(event))
@@ -231,9 +248,21 @@ export class PiAgent {
     }
   }
 
-  /** Reset the underlying pi session (fresh context). */
+  /**
+   * Path of the current pi session JSONL file (null until first run).
+   * AgentManager persists this so the same session resumes across restarts.
+   */
+  getSessionFile(): string | null {
+    return this.sessionManager?.getSessionFile() ?? null
+  }
+
+  /** Reset the underlying pi session (fresh context, new persisted session). */
   reset(): void {
+    this.unsub?.()
+    this.unsub = null
     this.session?.agent.reset()
+    this.session = null
+    this.sessionManager = null
     this.messages = []
     this.lastStreamed = []
     this.status = 'idle'

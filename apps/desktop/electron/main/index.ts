@@ -307,6 +307,9 @@ app.whenReady().then(async () => {
     configPath: path.join(app.getPath('userData'), 'agent-config.json'),
     agentsDir: path.join(app.getPath('userData'), 'agents'),
     piAgentDir: path.join(app.getPath('userData'), 'pi'),
+    // Every built-in tool-set skill is enabled and fed to pi as
+    // customTools (M7-3); future skill market can filter this list.
+    enabledToolsets: ['market', 'wallet-read', 'info'],
     infoStore: () => getInfoManager(),
   })
 
