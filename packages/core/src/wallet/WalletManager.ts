@@ -357,6 +357,13 @@ export class VaultWalletManager {
     return Array.from(this.authorizedKeys.keys())
   }
 
+  /** List persisted agent grants (keys only). Stable across restarts and
+   *  visible even while the vault is locked; signing still requires the
+   *  in-memory key, which is restored on unlock. */
+  listAuthorizedGrants(): string[] {
+    return [...this.authorizedGrants]
+  }
+
   /** Get a signing key if the Agent is authorized for this wallet/account. */
   getAuthorizedKey(walletId: string, index?: number): string | null {
     return this.authorizedKeys.get(this.authKey(walletId, index)) ?? null

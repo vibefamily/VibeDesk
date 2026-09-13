@@ -107,7 +107,7 @@ function setupIpcHandlers() {
       unlocked: vault.isUnlocked(),
       empty: vault.isEmpty(),
       wallets: vault.listWallets(),
-      authorized: vault.listAuthorized(),
+      authorized: vault.listAuthorizedGrants(),
     }
   })
 
@@ -242,7 +242,7 @@ function setupIpcHandlers() {
       const vault = getWalletManager()
       vault.unlock(args.password)
       vault.authorizeAgent(args.walletId, args.password, args.index)
-      return { authorized: vault.listAuthorized() }
+      return { authorized: vault.listAuthorizedGrants() }
     },
   )
 
@@ -250,7 +250,7 @@ function setupIpcHandlers() {
     'wallet:revokeAgent',
     (_e, args: { walletId: string; index?: number }) => {
       getWalletManager().revokeAgent(args.walletId, args.index)
-      return { authorized: getWalletManager().listAuthorized() }
+      return { authorized: getWalletManager().listAuthorizedGrants() }
     },
   )
 
