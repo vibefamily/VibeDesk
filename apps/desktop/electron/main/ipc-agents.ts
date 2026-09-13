@@ -212,6 +212,10 @@ export async function setupAgentIpc(
     return agentManager!.list()
   })
 
+  ipcMain.handle('agent:clearMessages', (_e, args: { id: string }) => {
+    return agentManager!.clearChat(args.id)
+  })
+
   ipcMain.handle('agent:runOnce', async (_e, args: { id: string }) => {
     await agentManager!.runOnce(args.id)
     return agentManager!.get(args.id)

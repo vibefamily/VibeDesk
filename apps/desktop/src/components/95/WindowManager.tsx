@@ -37,14 +37,20 @@ const WINDOW_COMPONENTS: Record<string, React.FC> = {
   portfolio: Portfolio,
 }
 
-/** Resolve the component for a window key. Chat windows are dynamic:
- *  a component key of `chat:<agentId>` renders that session's window. */
-function resolveComponent(component: string): React.FC | null {
+/**
+ * Render the content for a window key as a stable React element.
+ * IMPORTANT: never wrap this in a fresh function component — a new
+ * anonymous component type on every render makes React unmount/remount
+ * the view on any store update (e.g. the z-order bump from
+ * focusWindow on mousedown), which steals focus from inputs and resets
+ * window-local state.
+ */
+function renderContent(component: string): React.ReactNode {
   if (component.startsWith('chat:')) {
-    const agentId = component.slice('chat:'.length)
-    return () => <ChatWindow agentId={agentId} />
+    return <ChatWindow agentId={component.slice('chat:'.length)} />
   }
-  return WINDOW_COMPONENTS[component] ?? null
+  const Comp = WINDOW_COMPONENTS[component]
+  return Comp ? <Comp /> : null
 }
 
 const WindowManager: React.FC = () => {
@@ -54,8 +60,8 @@ const WindowManager: React.FC = () => {
     <>
       {windows.map((win) => {
         if (win.isMinimized) return null
-        const Content = resolveComponent(win.component)
-        if (!Content) return null
+        const content = renderContent(win.component)
+        if (content === null) return null
         return (
           <CustomWindow
             key={win.id}
@@ -69,7 +75,7 @@ const WindowManager: React.FC = () => {
             zIndex={win.zIndex}
             isMaximized={win.isMaximized}
           >
-            <Content />
+            {content}
           </CustomWindow>
         )
       })}

@@ -32,15 +32,15 @@ function fmtTime(ts: number | null): string {
 }
 
 const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
-  const { agents, mode, refresh, chat } = useAgentStore()
+  const { agents, mode, refresh, chat, clearChat, getLlmConfig } = useAgentStore()
   const chatIntent = useWindowStore((s) => s.chatIntent)
   const consumeChatIntent = useWindowStore((s) => s.consumeChatIntent)
-  const openWindow = useWindowStore((s) => s.openWindow)
 
   const [tab, setTab] = useState<'chat' | 'settings'>('chat')
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [bootstrapped, setBootstrapped] = useState(false)
+  const [modelLabel, setModelLabel] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Hard re-entrancy lock: React state updates are async, so `sending`
@@ -62,6 +62,13 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
     const t = setTimeout(() => inputRef.current?.focus(), 80)
     return () => clearTimeout(t)
   }, [tab])
+
+  // Show the currently selected AI model in the header.
+  useEffect(() => {
+    void getLlmConfig().then((cfg) => {
+      setModelLabel(cfg?.model ? String(cfg.model) : 'no LLM configured')
+    })
+  }, [getLlmConfig])
 
   // Keep this session live: apply main-process events so new messages
   // (including replies from this window's own chat calls) show up.
@@ -161,6 +168,23 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
           <span style={{ fontSize: 10, color: '#333' }}>· {agent.symbols.join(', ')}</span>
         )}
         <span style={{ fontSize: 10, color: '#333' }}>· {agent.status}</span>
+        <span
+          style={{
+            fontSize: 10,
+            color: '#000080',
+            background: '#fff',
+            border: '1px inset',
+            borderColor: '#808080 #fff #fff #808080',
+            padding: '1px 6px',
+            maxWidth: 160,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          title={modelLabel}
+        >
+          {modelLabel}
+        </span>
         <div style={{ flex: 1 }} />
         <button style={{ ...BTN, fontWeight: tab === 'chat' ? 700 : 400 }} onClick={() => setTab('chat')}>
           Chat
@@ -173,9 +197,12 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
         </button>
         <button
           style={BTN}
-          onClick={() => openWindow('agents', 'Agent Manager', '🤖')}
+          onClick={() => {
+            void clearChat(agent.id)
+            setInput('')
+          }}
         >
-          Sessions
+          Clear session
         </button>
       </div>
 

@@ -188,6 +188,7 @@ interface AgentApiType {
   stop: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   setIntervalMs: (args: { id: string; intervalMs: number }) => Promise<AgentInstanceApiType | null>
   remove: (args: { id: string }) => Promise<AgentInstanceApiType[]>
+  clearMessages: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   runOnce: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   setLlmConfig: (config: { baseUrl: string; apiKey: string; model: string } | null) => Promise<{ mode: 'llm' | 'rule' }>
   getLlmConfig: () => Promise<{ baseUrl: string; apiKey: string; model: string } | null>

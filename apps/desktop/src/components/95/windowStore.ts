@@ -181,15 +181,15 @@ export const useWindowStore = create<WindowStore>((set) => ({
     const vh = window.innerHeight
     const w = opts?.width ?? 760
     const h = opts?.height ?? 520
-    // New windows open centered on the desktop, with a small cascade
-    // offset so consecutive windows don't fully overlap.
+    // New windows open centered on the desktop; a small cascade offset
+    // separates consecutive windows instead of stacking them exactly.
     const cascade = Math.min(windows.length * 16, 80)
     useWindowStore.getState().addWindow({
       component,
       title,
       icon,
-      x: Math.max(8, Math.round((vw - w) / 2) - 30 + cascade),
-      y: Math.max(8, Math.round((vh - h) / 2) - 30 + cascade),
+      x: Math.max(8, Math.round((vw - w) / 2) + cascade),
+      y: Math.max(8, Math.round((vh - h) / 2) + cascade),
       width: w,
       height: h,
     })

@@ -567,6 +567,22 @@ export class AgentManager {
     this.removePersisted(id)
   }
 
+  /**
+   * Clear a chat session: wipe the visible message history and reset the
+   * pi session (if any) so the next run starts with fresh context.
+   */
+  clearChat(id: string): AgentInstanceView {
+    const managed = this.agents.get(id)
+    if (!managed) {
+      throw new Error(`Unknown agent: ${id}`)
+    }
+    managed.view.messages = []
+    managed.view.lastMessage = null
+    managed.agent?.reset()
+    this.persist(id)
+    return managed.view
+  }
+
   get(id: string): AgentInstanceView | null {
     return this.agents.get(id)?.view ?? null
   }

@@ -81,6 +81,7 @@ interface AgentState {
   stop: (id: string) => Promise<void>
   setIntervalMs: (id: string, intervalMs: number) => Promise<void>
   remove: (id: string) => Promise<void>
+  clearChat: (id: string) => Promise<void>
   runOnce: (id: string) => Promise<void>
   chat: (id: string, text: string) => Promise<void>
   dataSources: string[]
@@ -152,6 +153,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   remove: async (id) => {
     await api.remove({ id })
+    await get().refresh()
+  },
+
+  clearChat: async (id) => {
+    await api.clearMessages({ id })
     await get().refresh()
   },
 
