@@ -16,6 +16,7 @@
 import React, { useMemo, useState } from 'react'
 import { useAgentStore, type StockAnalysisView } from '../stores/agentStore'
 import { useWalletStore } from '../stores/walletStore'
+import AgentConfigPanel from '../components/AgentConfigPanel'
 
 const EXPLORER_TX = 'https://testnet.arcscan.app/tx/'
 
@@ -89,6 +90,7 @@ const stepStateStyle = (s: StepState): React.CSSProperties => ({
 const TradeRun: React.FC = () => {
   const agents = useAgentStore((s) => s.agents)
   const runOnce = useAgentStore((s) => s.runOnce)
+  const refresh = useAgentStore((s) => s.refresh)
   const wallets = useWalletStore((s) => s.wallets)
   const authorized = useWalletStore((s) => s.authorized)
   const refreshWallets = useWalletStore((s) => s.refresh)
@@ -120,6 +122,14 @@ const TradeRun: React.FC = () => {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ hash: string; status: 'pending' | 'success' | 'reverted' } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Execution mode: false = human confirms every trade (default, the
+  // showcase path); true = the agent auto-runs a fresh signal into the
+  // on-chain pipeline once the params below are filled in.
+  const [autoRun, setAutoRun] = useState(false)
+  // Inline per-agent settings: which data sources / wallets this agent
+  // is authorized to use. With no grants it is effectively a chat-only
+  // agent (no wallet to trade from).
+  const [showConfig, setShowConfig] = useState(false)
 
   // Refresh wallet authorization list whenever the panel mounts.
   React.useEffect(() => {
@@ -149,6 +159,13 @@ const TradeRun: React.FC = () => {
     try {
       await runOnce(selected.id)
       setSteps((s) => ({ ...s, signal: 'done' }))
+      // Auto-run mode: a fresh BUY/SELL signal flows straight into the
+      // execution pipeline (params must already be filled in).
+      if (autoRun) {
+        setTimeout(() => {
+          void doExecute()
+        }, 100)
+      }
     } catch (e) {
       setSteps((s) => ({ ...s, signal: 'error' }))
       setError((e as Error).message)
@@ -159,7 +176,13 @@ const TradeRun: React.FC = () => {
     setSteps((s) => ({ ...s, ...patch }))
 
   const doExecute = async () => {
-    if (!analysis || !side) {
+    // Read the freshest signal from the store instead of the render-time
+    // closure: auto-run fires right after a signal refresh.
+    const live = useAgentStore.getState().agents.find((a) => a.id === selected?.id)
+    const liveAnalysis = live?.lastAnalysis ?? null
+    const liveSide =
+      liveAnalysis?.action === 'BUY' ? 'buy' : liveAnalysis?.action === 'SELL' ? 'sell' : null
+    if (!liveAnalysis || !liveSide) {
       setError('No actionable signal (agent must say BUY or SELL).')
       return
     }
@@ -264,11 +287,41 @@ const TradeRun: React.FC = () => {
         <button style={btnStyle()} onClick={() => void refreshSignal()} disabled={busy || !selected}>
           {selected?.status === 'running' ? 'Analyzing…' : 'Refresh signal'}
         </button>
+        <label style={{ fontSize: 10, color: '#000', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input
+            type="checkbox"
+            checked={autoRun}
+            onChange={(e) => setAutoRun(e.target.checked)}
+          />
+          Auto-run
+        </label>
+        <button
+          style={{ ...btnStyle(), fontWeight: showConfig ? 700 : 400 }}
+          onClick={() => setShowConfig((v) => !v)}
+          disabled={!selected}
+        >
+          Agent settings
+        </button>
         <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 10, color: '#333' }}>
+          grants: {selected?.dataSources.length ?? 0} data · {selected?.walletAuths.length ?? 0}{' '}
+          wallet · {autoRun ? 'AUTO' : 'human-confirmed'}
+        </span>
         <span style={{ fontSize: 10, color: '#333' }}>
           Chain: Arc Testnet (5042002) · gas = native USDC
         </span>
       </div>
+
+      {showConfig && selected ? (
+        <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+          <AgentConfigPanel
+            agentId={selected.id}
+            initialDataSources={selected.dataSources}
+            initialWalletAuths={selected.walletAuths}
+            onSaved={() => void refresh()}
+          />
+        </div>
+      ) : (
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left: signal card */}
@@ -434,6 +487,7 @@ const TradeRun: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

@@ -91,10 +91,18 @@ const Desktop: React.FC = () => {
             .map((agent) => (
               <DesktopIcon
                 key={`agent:${agent.id}`}
-                icon={agent.icon}
+                icon={agent.templateId === 'stock-analyst' ? '📈' : agent.icon}
                 label={agent.name}
-                hint={`Agent: ${agent.name} (${agent.status}) - double-click to chat`}
-                onClick={() => openChatWindow(agent.id, agent.name, agent.icon)}
+                hint={
+                  agent.templateId === 'stock-analyst'
+                    ? 'Trade Agent - signals, quotes & on-chain execution'
+                    : `Chat Agent (${agent.status}) - double-click to chat`
+                }
+                onClick={() =>
+                  agent.templateId === 'stock-analyst'
+                    ? openWindow('trade-run', 'Trade Agent', '📈')
+                    : openChatWindow(agent.id, agent.name, agent.icon)
+                }
               />
             ))}
         </div>

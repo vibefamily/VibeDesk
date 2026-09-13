@@ -125,7 +125,10 @@ export const useWindowStore = create<WindowStore>((set) => ({
                 originalY: willMaximize ? w.y : w.originalY,
                 originalWidth: willMaximize ? w.width : w.originalWidth,
                 originalHeight: willMaximize ? w.height : w.originalHeight,
-                zIndex: state.nextZIndex,
+                // Keep the same "100 +" baseline as every other write site:
+                // a bare nextZIndex would drop a maximized window below
+                // regular windows (and below the drag strip).
+                zIndex: 100 + state.nextZIndex,
               }
             : w,
         ),
