@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand'
+import { useUiStore } from '../../stores/uiStore'
 
 export interface WindowState {
   id: string
@@ -181,11 +182,12 @@ export const useWindowStore = create<WindowStore>((set) => ({
     const vh = window.innerHeight
     const w = opts?.width ?? 760
     const h = opts?.height ?? 520
-    // Windows render inside the desktop icon area (which already starts
-    // 36px down and ends 40px above the taskbar), so center against that
-    // usable area WITHOUT re-adding the 36px offset - the Draggable
-    // position is relative to that container, not the viewport.
-    const usableH = vh - 36 - 40
+    // The desktop container is scaled by the Interface Size zoom, so a
+    // window's CSS coordinates are magnified visually. To make the
+    // window land on the viewport center we must divide by zoom; the
+    // position is relative to the icon area (36px from the top, 40px
+    // above the taskbar).
+    const zoom = useUiStore.getState().zoom
     const cascade = Math.min(windows.length * 14, 40)
     useWindowStore.getState().addWindow({
       component,
@@ -193,8 +195,8 @@ export const useWindowStore = create<WindowStore>((set) => ({
       icon,
       // x keeps a 150px left margin so a window never covers the
       // desktop icon column even if the viewport math is off.
-      x: Math.max(150, Math.round((vw - w) / 2) + cascade),
-      y: Math.max(8, Math.round((usableH - h) / 2) + cascade),
+      x: Math.max(150, Math.round(vw / (2 * zoom) - w / 2) + cascade),
+      y: Math.max(8, Math.round(vh / (2 * zoom) - 36 - h / 2) + cascade),
       width: w,
       height: h,
     })

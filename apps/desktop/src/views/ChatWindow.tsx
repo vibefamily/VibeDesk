@@ -42,6 +42,7 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
   const [bootstrapped, setBootstrapped] = useState(false)
   const [modelLabel, setModelLabel] = useState('')
   const endRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   // Hard re-entrancy lock: React state updates are async, so `sending`
   // alone cannot stop a second Enter / button click from entering send()
@@ -106,9 +107,13 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
     })()
   }, [chatIntent, agentId, chat, refresh, consumeChatIntent])
 
-  // Auto-scroll to the newest message.
+  // Auto-scroll to the newest message. Scroll the messages panel itself
+  // (scrollTop) instead of scrollIntoView: scrollIntoView bubbles up to
+  // the desktop icon container and scrolls the whole desktop, hiding the
+  // top icons and making a new window look like it slides in from below.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' })
+    const el = messagesRef.current
+    if (el) el.scrollTop = el.scrollHeight
   }, [agent?.messages.length, bootstrapped])
 
   const send = async (): Promise<void> => {
@@ -229,6 +234,7 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
       <>
       {/* Messages */}
       <div
+        ref={messagesRef}
         style={{
           flex: 1,
           overflow: 'auto',

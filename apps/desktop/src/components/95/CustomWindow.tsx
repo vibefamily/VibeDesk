@@ -72,6 +72,26 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
     }
   }, [resize, windowId, updateWindowSize, zoom])
 
+  // On mount, pull windows back into the desktop icon area if their
+  // stored position fell outside it (legacy positions from before the
+  // centering fixes). User-dragged windows stay where they are because
+  // dragging is bounded to the same area. Zoom-aware: the desktop is
+  // visually scaled, so bounds are checked in scaled space.
+  useEffect(() => {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const visibleRight = vw / zoom - 8
+    const visibleBottom = (vh - 40) / zoom - 36 - 8
+    if (x < -8 || y < -8 || x + width > visibleRight || y + height > visibleBottom) {
+      updateWindowPosition(
+        windowId,
+        Math.max(150, Math.round(vw / (2 * zoom) - width / 2)),
+        Math.max(8, Math.round(vh / (2 * zoom) - 36 - height / 2)),
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const frame: React.CSSProperties = {
     background: '#c0c0c0',
     border: '2px outset #fff',
