@@ -181,15 +181,18 @@ export const useWindowStore = create<WindowStore>((set) => ({
     const vh = window.innerHeight
     const w = opts?.width ?? 760
     const h = opts?.height ?? 520
-    // New windows open centered on the desktop; a small cascade offset
-    // separates consecutive windows instead of stacking them exactly.
-    const cascade = Math.min(windows.length * 16, 80)
+    // Windows render inside the desktop icon area: it starts 36px down
+    // and ends 40px above the taskbar. Center within that usable area so
+    // a window never overlaps the taskbar or the drag strip; a small
+    // cascade offset only separates consecutive windows.
+    const usableH = vh - 36 - 40
+    const cascade = Math.min(windows.length * 14, 40)
     useWindowStore.getState().addWindow({
       component,
       title,
       icon,
       x: Math.max(8, Math.round((vw - w) / 2) + cascade),
-      y: Math.max(8, Math.round((vh - h) / 2) + cascade),
+      y: Math.max(8, Math.round(36 + (usableH - h) / 2) + cascade),
       width: w,
       height: h,
     })

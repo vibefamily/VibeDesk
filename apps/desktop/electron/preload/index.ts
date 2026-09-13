@@ -196,6 +196,7 @@ const vibeAPI = {
     setIntervalMs: (args: { id: string; intervalMs: number }) =>
       ipcRenderer.invoke('agent:setIntervalMs', args),
     remove: (args: { id: string }) => ipcRenderer.invoke('agent:remove', args),
+    clearMessages: (args: { id: string }) => ipcRenderer.invoke('agent:clearMessages', args),
     runOnce: (args: { id: string }) => ipcRenderer.invoke('agent:runOnce', args),
     setLlmConfig: (config: {
       baseUrl: string
