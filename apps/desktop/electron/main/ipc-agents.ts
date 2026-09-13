@@ -218,8 +218,12 @@ export async function setupAgentIpc(
     walletAccess: {
       listAuthorizedWallets: () => {
         const vault = options.getWallet()
+        // Use the persisted grant list (not the in-memory key cache) so
+        // the agent can see which wallets the user granted even while the
+        // vault is locked. Signing still requires unlock via
+        // resolveWalletKey -> getAuthorizedKey.
         return vault
-          .listAuthorized()
+          .listAuthorizedGrants()
           .map((key) => {
             const [walletId = '', indexStr = ''] = key.split(':')
             if (!walletId) return null
