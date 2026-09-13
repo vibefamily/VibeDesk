@@ -120,7 +120,14 @@ const TradeRun: React.FC = () => {
   const refreshWallets = useWalletStore((s) => s.refresh)
 
   const [agentId, setAgentId] = useState('')
-  const selected = agents.find((a) => a.id === agentId) ?? agents[0]
+  // The Trade Agent window is bound to its own dedicated agent (named
+  // "Trade Agent"). Never fall back to agents[0] - that would share the
+  // General Chat context and leak trade messages into the chat agent.
+  const selected =
+    agents.find((a) => a.id === agentId) ??
+    agents.find((a) => a.name === 'Trade Agent') ??
+    agents.find((a) => a.templateId !== 'general-chat') ??
+    agents[0]
   const [showConfig, setShowConfig] = useState(false)
 
   // --- Left: chart + feed ---
