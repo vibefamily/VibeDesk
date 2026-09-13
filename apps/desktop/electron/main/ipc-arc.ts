@@ -61,11 +61,22 @@ export function setupArcIpc({ getWalletManager }: ArcIpcDeps): void {
   })
 
   ipcMain.handle('arc:balances', async (_e, args: { walletId: string; index?: number; token: string }) => {
+    // Balances are public on-chain data - only the wallet address is
+    // needed, so no unlock/auth is required here (signing still is).
     const vault = getWalletManager()
-    const key = vault.getAuthorizedKey(args.walletId, args.index)
-    if (!key) throw new Error('Wallet is not unlocked/authorized for trading - unlock the vault and grant this wallet in Wallet Manager')
-    const account = (await import('viem/accounts')).privateKeyToAccount(key as `0x${string}`)
-    return arcBalances(account.address, args.token)
+    const wallet = vault.getWallet(args.walletId)
+    if (!wallet) throw new Error('Wallet not found')
+    let address: `0x${string}`
+    if (wallet.kind === 'hd') {
+      const acc = (wallet.accounts ?? []).find(
+        (a) => String(a.index) === String(args.index ?? 0),
+      )
+      if (!acc) throw new Error('HD account not found')
+      address = acc.address as `0x${string}`
+    } else {
+      address = wallet.address as `0x${string}`
+    }
+    return arcBalances(address, args.token)
   })
 
   ipcMain.handle(

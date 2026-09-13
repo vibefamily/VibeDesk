@@ -23,7 +23,6 @@ import {
   arcWaitReceipt,
   arcExplorerTx,
 } from './arc'
-import { privateKeyToAccount } from 'viem/accounts'
 
 /**
  * Demo token on Arc testnet standing in for BTC/ETH until mainnet asset
@@ -184,15 +183,23 @@ export async function setupAgentIpc(
       return { status: receipt.status, explorerUrl: arcExplorerTx(hash) }
     },
     getBalances: async (walletId, index, token) => {
+      // Balances are public chain data: resolve the address from wallet
+      // metadata (no unlock needed), so the agent can read balances even
+      // while the vault is locked. Signing still requires unlock+auth.
       const vault = options.getWallet()
-      const resolved = resolveWalletKey(vault, walletId, index)
-      if (!resolved) {
-        throw new Error(
-          'Wallet is not unlocked/authorized for trading - unlock the vault and grant this wallet in Wallet Manager',
+      const wallet = vault.getWallet(walletId)
+      if (!wallet) throw new Error('Wallet not found')
+      let address: `0x${string}`
+      if (wallet.kind === 'hd') {
+        const acc = (wallet.accounts ?? []).find(
+          (a) => String(a.index) === String(index ?? 0),
         )
+        if (!acc) throw new Error('HD account not found')
+        address = acc.address as `0x${string}`
+      } else {
+        address = wallet.address as `0x${string}`
       }
-      const account = privateKeyToAccount(resolved.key as `0x${string}`)
-      return arcBalances(account.address, token as `0x${string}`)
+      return arcBalances(address, token as `0x${string}`)
     },
   }
   agentManager = new AgentManager({
