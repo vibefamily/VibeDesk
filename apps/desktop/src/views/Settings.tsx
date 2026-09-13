@@ -391,7 +391,8 @@ const LlmSettings: React.FC = () => {
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%',
+    flex: '1 1 auto',
+    minWidth: 0,
     boxSizing: 'border-box',
     fontSize: 11,
     fontFamily: 'inherit',
