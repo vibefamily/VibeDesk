@@ -282,6 +282,13 @@ const StockTokens: React.FC = () => {
               {manifests.map((m) => (
                 <th key={m.id} style={CELL_HEAD}>
                   {m.name}
+                  <div style={{ fontSize: 9, fontWeight: 400, color: '#333' }}>
+                    {m.assetScope === 'crypto'
+                      ? 'crypto only'
+                      : m.assetScope === 'stocks'
+                        ? 'stocks'
+                        : m.assetScope}
+                  </div>
                 </th>
               ))}
               <th style={CELL_HEAD}>Spread</th>
@@ -316,7 +323,9 @@ const StockTokens: React.FC = () => {
                     return (
                       <td key={id} style={{ ...CELL, textAlign: 'right', borderRight: '1px solid #c0c0c0' }}>
                         {isUnavailable ? (
-                          <span style={{ color: isSelected ? '#aaa' : '#999' }}>—</span>
+                          <span style={{ fontSize: 10, fontStyle: 'italic', color: isSelected ? '#aaa' : '#999' }}>
+                            n/a
+                          </span>
                         ) : (
                           fmtPrice(tick!.lastPrice)
                         )}
@@ -350,8 +359,9 @@ const StockTokens: React.FC = () => {
 
       <div style={{ fontSize: 10, color: '#555', marginTop: 6, lineHeight: 1.5 }}>
         Prices refresh every 15s from the main process · {selectedLive} live source(s) for{' '}
-        {selectedTicker} · — = source has no quote for this symbol (e.g. Hyperliquid / Binance
-        only list crypto)
+        {selectedTicker} · <span style={{ fontStyle: 'italic' }}>n/a</span> = source has no quote
+        for this symbol (Hyperliquid lists crypto only; Binance stock symbols like{' '}
+        {selectedTicker}BUSDT are free, an API key unlocks account-level data)
       </div>
 
       <ArcSwapPanel

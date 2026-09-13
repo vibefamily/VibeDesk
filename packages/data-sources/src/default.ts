@@ -49,11 +49,11 @@ export const BUILTIN_MANIFESTS: ProviderManifest[] = [
     id: 'binance',
     name: 'Binance',
     kind: 'cex',
-    assetScope: 'crypto',
-    authRequired: false,
+    assetScope: 'stocks+crypto',
+    authRequired: true,
     updateMode: ['rest', 'ws'],
-    description: 'Spot market data from Binance public API',
-    privacyNote: 'Public market data only.',
+    description: 'Spot market data incl. tokenized stocks (TSLABUSDT). User API key unlocks stock symbols.',
+    privacyNote: 'Keys stay in the main process config, never shown or sent out.',
   },
 ]
 

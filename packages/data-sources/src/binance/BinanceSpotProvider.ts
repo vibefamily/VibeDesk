@@ -65,6 +65,50 @@ export class BinanceSpotProvider implements IMarketDataProvider {
   private instrumentCache: Instrument[] = []
   private instrumentCacheTime = 0
   private cacheTtlMs = 3600_000 // 1 hour
+  /** Human symbol (TSLA, BTC) -> Binance pair (TSLABUSDT, BTCUSDT). */
+  private readonly symbolCache = new Map<string, string>()
+
+  /**
+   * Resolve a human-readable symbol to a tradable Binance pair.
+   *
+   * Binance lists tokenized stocks under `${TICKER}BUSDT` (TSLA -> TSLABUSDT),
+   * while crypto pairs are `BTCUSDT` etc. The exchange info snapshot is
+   * already cached for 1h, so resolving an unknown symbol costs one lookup
+   * per symbol at most.
+   */
+  private async resolveSymbol(symbol: string): Promise<string> {
+    const up = symbol.toUpperCase()
+    const cached = this.symbolCache.get(up)
+    if (cached) return cached
+    const alreadyPair =
+      up.length > 4 &&
+      (up.endsWith('USDT') ||
+        up.endsWith('BUSD') ||
+        up.endsWith('FDUSD') ||
+        up.endsWith('BTC') ||
+        up.endsWith('ETH'))
+    if (alreadyPair) {
+      this.symbolCache.set(up, up)
+      return up
+    }
+    try {
+      const instruments = await this.getInstruments()
+      const hit = instruments.find(
+        (i) =>
+          i.quoteAsset === 'USDT' &&
+          (i.baseAsset === `${up}B` || i.baseAsset === up),
+      )
+      if (hit) {
+        this.symbolCache.set(up, hit.symbol)
+        return hit.symbol
+      }
+    } catch {
+      // exchangeInfo failed; fall through to the raw symbol so the API
+      // produces a clear per-symbol error instead of a silent failure
+    }
+    this.symbolCache.set(up, up)
+    return up
+  }
 
   constructor(config: BinanceProviderConfig = {}) {
     this.config = config
@@ -158,7 +202,8 @@ export class BinanceSpotProvider implements IMarketDataProvider {
   // --- REST data ---
 
   async getTick(symbol: string): Promise<TickData> {
-    const response = await fetch(`${REST_BASE}/api/v3/ticker/24hr?symbol=${symbol}`)
+    const pair = await this.resolveSymbol(symbol)
+    const response = await fetch(`${REST_BASE}/api/v3/ticker/24hr?symbol=${pair}`)
     if (!response.ok) {
       throw new Error(`Binance ticker 24hr failed for ${symbol}: ${response.status}`)
     }
@@ -167,8 +212,9 @@ export class BinanceSpotProvider implements IMarketDataProvider {
   }
 
   async getOrderBook(symbol: string, limit = 20): Promise<OrderBookData> {
+    const pair = await this.resolveSymbol(symbol)
     const response = await fetch(
-      `${REST_BASE}/api/v3/depth?symbol=${symbol}&limit=${limit}`,
+      `${REST_BASE}/api/v3/depth?symbol=${pair}&limit=${limit}`,
     )
     if (!response.ok) {
       throw new Error(`Binance depth failed for ${symbol}: ${response.status}`)
@@ -193,8 +239,9 @@ export class BinanceSpotProvider implements IMarketDataProvider {
     timeframe: Timeframe,
     options?: { limit?: number; startTime?: number; endTime?: number },
   ): Promise<CandleData[]> {
+    const pair = await this.resolveSymbol(symbol)
     const params = new URLSearchParams({
-      symbol,
+      symbol: pair,
       interval: timeframe,
     })
     if (options?.limit) params.set('limit', String(options.limit))
@@ -217,8 +264,9 @@ export class BinanceSpotProvider implements IMarketDataProvider {
   }
 
   async getRecentTrades(symbol: string, limit = 500): Promise<TradeData[]> {
+    const pair = await this.resolveSymbol(symbol)
     const response = await fetch(
-      `${REST_BASE}/api/v3/trades?symbol=${symbol}&limit=${limit}`,
+      `${REST_BASE}/api/v3/trades?symbol=${pair}&limit=${limit}`,
     )
     if (!response.ok) {
       throw new Error(`Binance trades failed for ${symbol}: ${response.status}`)
