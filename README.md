@@ -22,7 +22,7 @@ A local-first desktop application where your AI agents read live multi-source ma
 
 - **Multi-agent by design** — run a general chat agent, a trading agent and news bots side by side, each with its own context, tools and memory
 - **Powered by the Pi engine** — a full agent runtime with persistent context and tool-calling built in
-- **Pluggable skills** — extend any agent with data-source skills, strategy skills, or skills the agent builds for you on the fly（局部实现）
+- **Pluggable skills** — extend any agent with data-source skills, strategy skills, or skills the agent builds for you on the fly *(partially implemented)*
 
 ## 03 · Data
 
