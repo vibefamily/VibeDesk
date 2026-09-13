@@ -192,6 +192,22 @@ const DataSources: React.FC = () => {
           </div>
         </div>
         <div style={{ flex: 1 }} />
+        <button
+          disabled
+          title="Pluggable price sources (custom providers, Arc chain, etc.) land here in a later milestone"
+          style={{
+            fontSize: 11,
+            padding: '4px 12px',
+            background: '#c0c0c0',
+            border: '2px outset',
+            borderColor: '#fff #808080 #808080 #fff',
+            color: '#888',
+            cursor: 'not-allowed',
+            marginRight: 8,
+          }}
+        >
+          + Add price source
+        </button>
         <span
           style={{
             fontSize: 11,
