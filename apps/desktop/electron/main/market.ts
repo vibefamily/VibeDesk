@@ -140,6 +140,8 @@ export function setupMarketIpc(): void {
     // next 15s broadcast) so a freshly opened Data Center shows prices
     // right away; ticks keep streaming in over 'market:ticks'.
     const snap = await takeSnapshot().catch(() => null)
+    const tc = snap ? Object.values(snap.ticks).reduce((a, t) => a + Object.keys(t).length, 0) : -1
+    console.log(`[market] getState -> manifests=${manifests.length} ticks=${tc}`)
     return {
       ready: true,
       manifests,
@@ -166,6 +168,7 @@ export function setupMarketIpc(): void {
   )
 
   ipcMain.handle('market:refreshSymbol', async (_e, symbol: string) => {
+    console.log(`[market] refreshSymbol ${String(symbol).toUpperCase()}`)
     const result = await snapshotSymbol(String(symbol).toUpperCase())
     const snap: MarketSnapshot = {
       ticks: { [String(symbol).toUpperCase()]: result.ticks },
