@@ -237,6 +237,15 @@ const CustomWindow: React.FC<CustomWindowProps> = ({
         onMouseDownCapture={() => focusWindow(windowId)}
         style={{
           position: 'absolute',
+          // Anchor the static position to the container's top-left corner.
+          // Without top/left, an absolutely positioned element sits at its
+          // static (in-flow) position - which is below the desktop icon
+          // column - and the Draggable transform is then applied ON TOP of
+          // that offset. That pushed every window down by the height of the
+          // icon column and made new windows appear to slide in from the
+          // bottom of the screen.
+          top: 0,
+          left: 0,
           width: `${width}px`,
           height: `${height}px`,
           zIndex: 100 + zIndex,

@@ -58,9 +58,11 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
 
   // Focus the composer once the window has settled so the user can start
   // typing immediately; a visible focus outline makes the state obvious.
-  // Re-focus when returning from the Settings tab.
+  // Re-focus when returning from the Settings tab. preventScroll keeps
+  // focus from scrolling the desktop icon container (which would hide
+  // the top icons and make the window look like it slides in from below).
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 80)
+    const t = setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 80)
     return () => clearTimeout(t)
   }, [tab])
 
