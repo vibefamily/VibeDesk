@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAgentStore } from '../stores/agentStore'
 import { useWalletStore } from '../stores/walletStore'
 import PriceChart from '../components/PriceChart'
+import AgentConfigPanel from '../components/AgentConfigPanel'
 import type { InfoItem } from '@vibe/shared'
 
 const EXPLORER_TX = 'https://testnet.arcscan.app/tx/'
@@ -120,6 +121,7 @@ const TradeRun: React.FC = () => {
 
   const [agentId, setAgentId] = useState('')
   const selected = agents.find((a) => a.id === agentId) ?? agents[0]
+  const [showConfig, setShowConfig] = useState(false)
 
   // --- Left: chart + feed ---
   const [asset, setAsset] = useState<CryptoAsset>(CRYPTO_ASSETS[0]!)
@@ -416,7 +418,8 @@ const TradeRun: React.FC = () => {
         <select
           style={{ ...field(0), maxWidth: 200 }}
           value={selected?.id ?? ''}
-          onChange={(e) => setAgentId(e.target.value)}
+          disabled
+          title="This agent is bound to this window. Create a new agent for a different setup."
         >
           {agents.map((a) => (
             <option key={a.id} value={a.id}>
@@ -432,6 +435,13 @@ const TradeRun: React.FC = () => {
           onClick={() => setShowRisk((v) => !v)}
         >
           Risk settings
+        </button>
+        <button
+          style={{ ...btnStyle(), fontWeight: showConfig ? 700 : 400 }}
+          onClick={() => setShowConfig((v) => !v)}
+          disabled={!selected}
+        >
+          Agent settings
         </button>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 10, color: '#333' }}>
@@ -504,6 +514,16 @@ const TradeRun: React.FC = () => {
         </div>
       )}
 
+      {showConfig && selected ? (
+        <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+          <AgentConfigPanel
+            agentId={selected.id}
+            initialDataSources={selected.dataSources}
+            initialWalletAuths={selected.walletAuths}
+            onSaved={() => void refresh()}
+          />
+        </div>
+      ) : (
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Left: chart + feed */}
         <div
@@ -756,6 +776,7 @@ const TradeRun: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }
