@@ -269,7 +269,10 @@ export async function setupAgentIpc(
   })
 
   // Built-in skills catalog (global install/uninstall lands later).
-  ipcMain.handle('skills:list', () => {
+  // Named skills:catalog because skills:list already belongs to the
+  // data-source skill manager in skills.ts - registering it twice here
+  // made setupAgentIpc throw and killed every agent: handler.
+  ipcMain.handle('skills:catalog', () => {
     return [
       {
         id: 'trade-execute',
