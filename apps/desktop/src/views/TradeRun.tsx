@@ -24,22 +24,30 @@ import type { InfoItem } from '@vibe/shared'
 const EXPLORER_TX = 'https://testnet.arcscan.app/tx/'
 
 /**
- * Demo token on Arc testnet (Minara, graduated). BTC/ETH chart pairs come
- * from Binance; on-chain they map to this Arc asset for the hackathon demo
- * (real asset mapping lands with mainnet support).
+ * ARCFOMO is the real demo token on Arc testnet (Minara, graduated):
+ * 0xe2CfD2893aD90E8A5B4f87C5CAd22d150b1E12A0. BTC/ETH pairs only exist
+ * as Binance chart references; on-chain they still map to ARCFOMO until
+ * real asset mapping lands with mainnet support.
  */
-const DEMO_ARC_TOKEN = '0xe2cfd2893ad90e8a5b4f87c5cad22d150b1e12a0'
+const ARCFOMO_ARC_TOKEN = '0xe2cfd2893ad90e8a5b4f87c5cad22d150b1e12a0'
 
 interface CryptoAsset {
   symbol: string
   name: string
+  /** Binance chart pair; empty = no CEX chart (on-chain only asset). */
   pair: string
   arcToken: string
 }
 
 const CRYPTO_ASSETS: CryptoAsset[] = [
-  { symbol: 'BTC', name: 'Bitcoin', pair: 'BTCUSDT', arcToken: DEMO_ARC_TOKEN },
-  { symbol: 'ETH', name: 'Ethereum', pair: 'ETHUSDT', arcToken: DEMO_ARC_TOKEN },
+  {
+    symbol: 'ARCFOMO',
+    name: 'ARCFOMO (Arc testnet)',
+    pair: '',
+    arcToken: ARCFOMO_ARC_TOKEN,
+  },
+  { symbol: 'BTC', name: 'Bitcoin', pair: 'BTCUSDT', arcToken: ARCFOMO_ARC_TOKEN },
+  { symbol: 'ETH', name: 'Ethereum', pair: 'ETHUSDT', arcToken: ARCFOMO_ARC_TOKEN },
 ]
 
 interface RiskSettings {
@@ -104,7 +112,7 @@ interface ChatMsg {
 
 /** Parse "buy 0.01 btc" / "sell 2 eth" from a chat line. */
 function parseIntent(text: string): { side: 'buy' | 'sell'; amount: number; symbol: string } | null {
-  const m = /^(?:buy|sell)\s+([\d.]+)\s*(btc|eth)\b/i.exec(text.trim())
+  const m = /^(?:buy|sell)\s+([\d.]+)\s*(arcfomo|btc|eth)\b/i.exec(text.trim())
   if (!m) return null
   const amount = Number(m[1])
   if (!Number.isFinite(amount) || amount <= 0) return null
@@ -140,7 +148,7 @@ const TradeRun: React.FC = () => {
   // --- Right: wallet + execution ---
   const [accountKey, setAccountKey] = useState('')
   const [autoRun, setAutoRun] = useState(false)
-  const [arcToken, setArcToken] = useState(DEMO_ARC_TOKEN)
+  const [arcToken, setArcToken] = useState(ARCFOMO_ARC_TOKEN)
   const [amount, setAmount] = useState('')
   const [balances, setBalances] = useState<{ usdc: string; token: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -151,7 +159,7 @@ const TradeRun: React.FC = () => {
 
   // --- Chat ---
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([
-    { role: 'system', content: 'Ask me to trade: e.g. "buy 0.01 BTC" or "sell 0.5 ETH".', at: Date.now() },
+    { role: 'system', content: 'Ask me to trade: e.g. "buy 100 ARCFOMO" or "buy 0.01 BTC" or "sell 0.5 ETH".', at: Date.now() },
   ])
   const [chatInput, setChatInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -185,6 +193,12 @@ const TradeRun: React.FC = () => {
 
   // --- Chart: Binance 1m candles for the selected asset ---
   const loadCandles = useCallback(async (): Promise<void> => {
+    if (!asset.pair) {
+      // On-chain-only asset (e.g. ARCFOMO on Arc testnet) has no CEX chart.
+      setCandles([])
+      setChartError(null)
+      return
+    }
     try {
       const res = await window.vibeAPI.market.candles({
         symbol: asset.pair,
@@ -566,14 +580,35 @@ const TradeRun: React.FC = () => {
                   {a.symbol}
                 </button>
               ))}
-              <span style={{ fontSize: 9, color: '#333' }}>Binance {asset.pair} · 1m</span>
+              <span style={{ fontSize: 9, color: '#333' }}>
+                {asset.pair ? `Binance ${asset.pair} · 1m` : 'ARC testnet · on-chain only'}
+              </span>
             </div>
             {chartError && <div style={{ fontSize: 10, color: '#a00', marginBottom: 4 }}>{chartError}</div>}
-            <PriceChart
-              series={[{ provider: asset.pair, points: candles }]}
-              height={190}
-              providers={[asset.pair]}
-            />
+            {asset.pair ? (
+              <PriceChart
+                series={[{ provider: asset.pair, points: candles }]}
+                height={190}
+                providers={[asset.pair]}
+              />
+            ) : (
+              <div
+                style={{
+                  height: 190,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px inset',
+                  borderColor: '#808080 #fff #fff #808080',
+                  background: '#fff',
+                  fontSize: 11,
+                  color: '#333',
+                }}
+              >
+                {asset.symbol} — no CEX chart (on-chain only). Balances &amp; swaps
+                below use the real Arc token.
+              </div>
+            )}
           </div>
 
           {/* Feed */}
@@ -690,7 +725,7 @@ const TradeRun: React.FC = () => {
             <label style={{ fontSize: 11, color: '#000', display: 'flex', gap: 6, alignItems: 'center' }}>
               <span style={{ width: 70 }}>Side</span>
               <span style={{ fontSize: 11, color: '#666' }}>
-                BUY pays USDC · SELL receives USDC (set via chat: "buy 0.01 BTC")
+                BUY pays USDC · SELL receives USDC (set via chat: "buy 100 ARCFOMO")
               </span>
             </label>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -776,7 +811,7 @@ const TradeRun: React.FC = () => {
               <input
                 ref={inputRef}
                 style={{ ...field(1), width: '100%' }}
-                placeholder='Try "buy 0.01 BTC" or ask a question…'
+                placeholder='Try "buy 100 ARCFOMO" or ask a question…'
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => {
