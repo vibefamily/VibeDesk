@@ -82,6 +82,8 @@ interface VaultEntry {
 interface VaultFile {
   version: 1
   wallets: Record<string, VaultEntry>
+  /** Persisted agent grant keys ("walletId" or "walletId:index"). */
+  authorized?: string[]
 }
 
 const VAULT_VERSION = 1
@@ -106,6 +108,8 @@ export class VaultWalletManager {
   private mainKey: Buffer | null = null
   /** In-memory agent authorization cache: walletId -> private key hex */
   private authorizedKeys = new Map<string, string>()
+  /** Persisted grant list (keys only, no secrets), restored on unlock. */
+  private authorizedGrants: string[] = []
   private chain: string
 
   constructor(storagePath: string, options: VaultWalletManagerOptions = {}) {
@@ -123,6 +127,7 @@ export class VaultWalletManager {
     }
     const raw = readFileSync(this.storagePath, 'utf8')
     this.vault = JSON.parse(raw) as VaultFile
+    this.authorizedGrants = this.vault.authorized ?? []
   }
 
   /** Unlock the vault: derive the master key from the password. */
@@ -141,6 +146,8 @@ export class VaultWalletManager {
     }
     // Cache a derived session key for cheap subsequent decryptions.
     this.mainKey = Buffer.from(password, 'utf8')
+    // Restore persisted agent grants now that the vault is unlocked.
+    this.restoreAuthorized(password)
   }
 
   /** Lock the vault and drop all in-memory secrets. */
@@ -317,22 +324,32 @@ export class VaultWalletManager {
     return this.decryptPayload(entry.mnemonic, password)
   }
 
-  // --- Agent authorization (in-memory only) ---
+  // --- Agent authorization (in-memory keys, persisted grants) ---
 
-  /** Grant the Agent access to a wallet/account signing key, in memory only. */
+  /** Grant the Agent access to a wallet/account signing key (in memory only). */
   authorizeAgent(walletId: string, password: string, index?: number): void {
     const privateKey = this.getSecret(walletId, password, index)
-    this.authorizedKeys.set(this.authKey(walletId, index), privateKey)
+    const key = this.authKey(walletId, index)
+    this.authorizedKeys.set(key, privateKey)
+    if (!this.authorizedGrants.includes(key)) {
+      this.authorizedGrants.push(key)
+      this.persistGrants()
+    }
   }
 
   /** Revoke Agent access for a wallet/account. */
   revokeAgent(walletId: string, index?: number): void {
-    this.authorizedKeys.delete(this.authKey(walletId, index))
+    const key = this.authKey(walletId, index)
+    this.authorizedKeys.delete(key)
+    this.authorizedGrants = this.authorizedGrants.filter((k) => k !== key)
+    this.persistGrants()
   }
 
   /** Revoke Agent access for all wallets. */
   revokeAllAgents(): void {
     this.authorizedKeys.clear()
+    this.authorizedGrants = []
+    this.persistGrants()
   }
 
   /** List wallet keys the Agent currently has in-memory access to. */
@@ -343,6 +360,30 @@ export class VaultWalletManager {
   /** Get a signing key if the Agent is authorized for this wallet/account. */
   getAuthorizedKey(walletId: string, index?: number): string | null {
     return this.authorizedKeys.get(this.authKey(walletId, index)) ?? null
+  }
+
+  /** Re-derive signing keys for persisted grants after the vault unlocks. */
+  private restoreAuthorized(password: string): void {
+    const stale: string[] = []
+    for (const key of this.authorizedGrants) {
+      const [walletId, indexStr] = key.includes(':') ? key.split(':') : [key, undefined]
+      const index = indexStr === undefined ? undefined : Number(indexStr)
+      try {
+        this.authorizedKeys.set(key, this.getSecret(walletId!, password, index))
+      } catch {
+        // Wallet was removed or is unreadable - drop the stale grant.
+        stale.push(key)
+      }
+    }
+    if (stale.length > 0) {
+      this.authorizedGrants = this.authorizedGrants.filter((k) => !stale.includes(k))
+      this.persistGrants()
+    }
+  }
+
+  private persistGrants(): void {
+    this.vault.authorized = [...this.authorizedGrants]
+    this.save()
   }
 
   // --- Metadata ---
@@ -364,7 +405,14 @@ export class VaultWalletManager {
       return
     }
     delete this.vault.wallets[id]
-    this.revokeAllAgents()
+    // Drop grants only for this wallet (its accounts use "id:index" keys).
+    this.authorizedGrants = this.authorizedGrants.filter(
+      (k) => k !== id && !k.startsWith(`${id}:`),
+    )
+    for (const key of Array.from(this.authorizedKeys.keys())) {
+      if (key === id || key.startsWith(`${id}:`)) this.authorizedKeys.delete(key)
+    }
+    this.persistGrants()
     this.save()
   }
 
