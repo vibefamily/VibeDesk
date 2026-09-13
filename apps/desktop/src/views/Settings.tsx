@@ -392,13 +392,13 @@ const LlmSettings: React.FC = () => {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
+    maxWidth: 480,
     boxSizing: 'border-box',
     fontSize: 11,
     fontFamily: 'inherit',
     background: '#fff',
     color: '#000',
-    border: '2px inset',
-    borderColor: '#808080 #fff #fff #808080',
+    border: '2px solid #808080',
     padding: '3px 5px',
   }
   /** Field layout: label above, control below, full column width. */
@@ -474,81 +474,77 @@ const LlmSettings: React.FC = () => {
           <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000' }}>
             {editing ? `Edit provider - ${editing.name}` : 'Add provider'}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 14px', alignItems: 'start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {!editing &&
-                field(
-                  'Preset',
-                  <select value={fName} onChange={(e) => applyPreset(e.target.value)} style={inputStyle}>
-                    {PRESETS.map((p) => (
-                      <option key={p.name} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>,
-                )}
-              {field(
-                'Name',
-                <input value={fName} onChange={(e) => setFName(e.target.value)} style={inputStyle} />,
-              )}
-              {field(
-                'API',
-                <select value={fApi} onChange={(e) => setFApi(e.target.value as ProviderApi)} style={inputStyle}>
-                  <option value="openai-completions">OpenAI-compatible (also Ollama)</option>
-                  <option value="anthropic-messages">Anthropic Messages</option>
-                  <option value="google-generative-ai">Google Gemini</option>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 430, overflowY: 'auto' }}>
+            {!editing &&
+              field(
+                'Preset',
+                <select value={fName} onChange={(e) => applyPreset(e.target.value)} style={inputStyle}>
+                  {PRESETS.map((p) => (
+                    <option key={p.name} value={p.name}>{p.name}</option>
+                  ))}
                 </select>,
               )}
-              {field(
-                'Base URL',
+            {field(
+              'Name',
+              <input value={fName} onChange={(e) => setFName(e.target.value)} style={inputStyle} />,
+            )}
+            {field(
+              'API',
+              <select value={fApi} onChange={(e) => setFApi(e.target.value as ProviderApi)} style={inputStyle}>
+                <option value="openai-completions">OpenAI-compatible (also Ollama)</option>
+                <option value="anthropic-messages">Anthropic Messages</option>
+                <option value="google-generative-ai">Google Gemini</option>
+              </select>,
+            )}
+            {field(
+              'Base URL',
+              <input
+                value={fBaseUrl}
+                onChange={(e) => setFBaseUrl(e.target.value)}
+                placeholder="https://…"
+                style={inputStyle}
+              />,
+            )}
+            {field(
+              'API key',
+              <input
+                type="password"
+                value={fApiKey}
+                onChange={(e) => setFApiKey(e.target.value)}
+                placeholder={editing ? 'Leave empty to keep the saved key' : 'sk-…'}
+                style={inputStyle}
+              />,
+            )}
+            {field(
+              'Models',
+              <input
+                value={fModels}
+                onChange={(e) => setFModels(e.target.value)}
+                placeholder="comma separated, e.g. gpt-4o, gpt-4o-mini"
+                style={inputStyle}
+              />,
+            )}
+            {field(
+              'Default model',
+              <input
+                value={fModel}
+                onChange={(e) => setFModel(e.target.value)}
+                placeholder="default for this provider"
+                style={inputStyle}
+              />,
+            )}
+            {field(
+              'Activate',
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#333', cursor: 'pointer' }}>
                 <input
-                  value={fBaseUrl}
-                  onChange={(e) => setFBaseUrl(e.target.value)}
-                  placeholder="https://…"
-                  style={inputStyle}
-                />,
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {field(
-                'API key',
-                <input
-                  type="password"
-                  value={fApiKey}
-                  onChange={(e) => setFApiKey(e.target.value)}
-                  placeholder={editing ? 'Leave empty to keep the saved key' : 'sk-…'}
-                  style={inputStyle}
-                />,
-              )}
-              {field(
-                'Models',
-                <input
-                  value={fModels}
-                  onChange={(e) => setFModels(e.target.value)}
-                  placeholder="comma separated, e.g. gpt-4o, gpt-4o-mini"
-                  style={inputStyle}
-                />,
-              )}
-              {field(
-                'Default model',
-                <input
-                  value={fModel}
-                  onChange={(e) => setFModel(e.target.value)}
-                  placeholder="default for this provider"
-                  style={inputStyle}
-                />,
-              )}
-              <div>
-                <div style={{ fontSize: 11, color: '#000', marginBottom: 2 }}>Activate</div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#333', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={fActive}
-                    onChange={(e) => setFActive(e.target.checked)}
-                    style={{ width: 15, height: 15 }}
-                  />
-                  Route agents through this provider now
-                </label>
-              </div>
-            </div>
+                  type="checkbox"
+                  checked={fActive}
+                  onChange={(e) => setFActive(e.target.checked)}
+                  style={{ width: 15, height: 15 }}
+                />
+                Route agents through this provider now
+              </label>,
+            )}
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
             <button style={btn} disabled={saving} onClick={() => void onSave()}>
