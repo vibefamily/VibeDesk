@@ -293,6 +293,8 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
                     fontSize: 11,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
+                    userSelect: 'text',
+                    WebkitUserSelect: 'text',
                   }}
                 >
                   {m.content}
@@ -326,6 +328,8 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
                   fontSize: 11,
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
+                  userSelect: 'text',
+                  WebkitUserSelect: 'text',
                 }}
               >
                 <span style={{ fontSize: 9, color: '#555', display: 'block' }}>

@@ -123,6 +123,28 @@ export async function setupAgentIpc(
   // Bridge that lets the trade-execute skill sign real Arc swaps with the
   // vault's in-memory authorized key. Private keys never leave the main
   // process; the agent only ever sees tx hashes and balances.
+  // Resolve the agent-supplied wallet reference (an id, or a wallet name
+  // the LLM may have picked up from list_authorized_wallets) to a signing
+  // key from the vault's in-memory authorized cache.
+  const resolveWalletKey = (
+    vault: VaultWalletManager,
+    walletId: string,
+    index?: number,
+  ): { key: string; walletId: string; index: number | undefined } | null => {
+    let key = vault.getAuthorizedKey(walletId, index)
+    if (key) return { key, walletId, index }
+    // Fallback: match by wallet name across every authorized grant.
+    for (const grant of vault.listAuthorized()) {
+      const [wid = '', idxStr = ''] = grant.split(':')
+      const meta = vault.getWallet(wid)
+      if (meta && meta.name === walletId) {
+        const i = idxStr === '' ? undefined : Number(idxStr)
+        const k = vault.getAuthorizedKey(wid, i)
+        if (k) return { key: k, walletId: wid, index: i }
+      }
+    }
+    return null
+  }
   const tradeExecutor: TradeExecutor = {
     resolveToken: async (symbol) => {
       const s = String(symbol).toUpperCase()
@@ -142,14 +164,14 @@ export async function setupAgentIpc(
     },
     executeSwap: async ({ walletId, index, token, amountIn, buy, amountOutMinimum }) => {
       const vault = options.getWallet()
-      const privateKey = vault.getAuthorizedKey(walletId, index)
-      if (!privateKey) {
+      const resolved = resolveWalletKey(vault, walletId, index)
+      if (!resolved) {
         throw new Error(
           'Wallet is not unlocked/authorized for trading - unlock the vault and grant this wallet in Wallet Manager',
         )
       }
       const { hash } = await arcSwap({
-        privateKey: privateKey as `0x${string}`,
+        privateKey: resolved.key as `0x${string}`,
         token: token as `0x${string}`,
         zeroForOne: buy,
         amountIn: BigInt(amountIn),
@@ -163,13 +185,13 @@ export async function setupAgentIpc(
     },
     getBalances: async (walletId, index, token) => {
       const vault = options.getWallet()
-      const key = vault.getAuthorizedKey(walletId, index)
-      if (!key) {
+      const resolved = resolveWalletKey(vault, walletId, index)
+      if (!resolved) {
         throw new Error(
           'Wallet is not unlocked/authorized for trading - unlock the vault and grant this wallet in Wallet Manager',
         )
       }
-      const account = privateKeyToAccount(key as `0x${string}`)
+      const account = privateKeyToAccount(resolved.key as `0x${string}`)
       return arcBalances(account.address, token as `0x${string}`)
     },
   }

@@ -115,7 +115,6 @@ const TradeRun: React.FC = () => {
   const agents = useAgentStore((s) => s.agents)
   const refresh = useAgentStore((s) => s.refresh)
   const chat = useAgentStore((s) => s.chat)
-  const setSkills = useAgentStore((s) => s.setSkills)
   const wallets = useWalletStore((s) => s.wallets)
   const authorized = useWalletStore((s) => s.authorized)
   const refreshWallets = useWalletStore((s) => s.refresh)
@@ -149,9 +148,6 @@ const TradeRun: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [risk, setRisk] = useState<RiskSettings>(loadRisk)
   const [showRisk, setShowRisk] = useState(false)
-  const [showSkills, setShowSkills] = useState(false)
-  const [skillCatalog, setSkillCatalog] = useState<{ id: string; name: string; description: string; icon: string }[]>([])
-  const [skillErr, setSkillErr] = useState('')
 
   // --- Chat ---
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([
@@ -254,27 +250,6 @@ const TradeRun: React.FC = () => {
     const t = setInterval(() => void loadBalances(), 15_000)
     return () => clearInterval(t)
   }, [loadBalances])
-
-  // --- Skills panel ---
-  useEffect(() => {
-    window.vibeAPI.agent
-      .listSkills()
-      .then(setSkillCatalog)
-      .catch(() => setSkillCatalog([]))
-  }, [])
-
-  const toggleSkill = async (id: string, on: boolean) => {
-    if (!selected) return
-    setSkillErr('')
-    try {
-      const next = on
-        ? [...(selected.skills ?? []), id]
-        : (selected.skills ?? []).filter((s) => s !== id)
-      await setSkills(selected.id, next)
-    } catch (e) {
-      setSkillErr((e as Error).message)
-    }
-  }
 
   // --- Risk settings persistence ---
   const saveRisk = (next: RiskSettings) => {
@@ -475,13 +450,6 @@ const TradeRun: React.FC = () => {
         >
           Agent settings
         </button>
-        <button
-          style={{ ...btnStyle(), fontWeight: showSkills ? 700 : 400 }}
-          onClick={() => setShowSkills((v) => !v)}
-          disabled={!selected}
-        >
-          Skills
-        </button>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 10, color: '#333' }}>
           grants: {selected?.dataSources.length ?? 0} data · {selected?.walletAuths.length ?? 0} wallet
@@ -554,44 +522,6 @@ const TradeRun: React.FC = () => {
       )}
 
       {/* Skills panel */}
-      {showSkills && selected && (
-        <div
-          style={{
-            borderBottom: '2px solid #808080',
-            padding: 8,
-            background: '#d4d0c8',
-            fontSize: 11,
-            color: '#000',
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>Skills for {selected.name}</div>
-          {skillCatalog.length === 0 ? (
-            <div style={{ fontSize: 10, color: '#555' }}>No skills registered.</div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px' }}>
-              {skillCatalog.map((s) => (
-                <label
-                  key={s.id}
-                  style={{ display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}
-                  title={s.description}
-                >
-                  <input
-                    type="checkbox"
-                    checked={(selected.skills ?? []).includes(s.id)}
-                    onChange={(e) => void toggleSkill(s.id, e.target.checked)}
-                  />
-                  {s.icon} {s.name}
-                </label>
-              ))}
-            </div>
-          )}
-          <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>
-            Enable Trade Execute so the agent can quote and run real swaps. Changes apply to the
-            next message.
-          </div>
-          {skillErr && <div style={{ fontSize: 10, color: '#a00', marginTop: 2 }}>{skillErr}</div>}
-        </div>
-      )}
 
       {showConfig && selected ? (
         <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
@@ -825,7 +755,15 @@ const TradeRun: React.FC = () => {
               }}
             >
               {chatMsgs.map((m, i) => (
-                <div key={i} style={{ fontSize: 11, color: m.role === 'system' ? '#555' : '#000' }}>
+                <div
+                  key={i}
+                  style={{
+                    fontSize: 11,
+                    color: m.role === 'system' ? '#555' : '#000',
+                    userSelect: 'text',
+                    WebkitUserSelect: 'text',
+                  }}
+                >
                   {m.role === 'user' && <b style={{ color: '#000080' }}>You: </b>}
                   {m.role === 'agent' && <b style={{ color: '#006' }}>Agent: </b>}
                   {m.role === 'system' && <i>• </i>}
