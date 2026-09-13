@@ -10,6 +10,49 @@ import { useUiStore, SCALE_LABEL, type UiScale } from '../stores/uiStore'
 
 type SettingsTab = 'general' | 'wallets' | 'exchanges' | 'risk' | 'models'
 
+/** Blockchain network switcher (Arc testnet / mainnet placeholders). */
+const NetworkSetting: React.FC = () => {
+  const [network, setNetwork] = useState<'testnet' | 'mainnet'>('testnet')
+  const [mainnetReady, setMainnetReady] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    window.vibeAPI.arc
+      .getNetwork()
+      .then((r) => {
+        setNetwork(r.network)
+        setMainnetReady(r.mainnetReady)
+      })
+      .catch(() => {
+        // Network API unavailable - keep defaults.
+      })
+  }, [])
+
+  const onChange = async (v: string) => {
+    setErr('')
+    try {
+      const r = await window.vibeAPI.arc.setNetwork(v)
+      setNetwork(r.network)
+      setMainnetReady(r.mainnetReady)
+    } catch (e) {
+      setErr((e as Error).message)
+    }
+  }
+
+  return (
+    <SettingRow
+      label="Blockchain Network"
+      description="Arc network for quotes & swaps. Mainnet is configured after 9-30 (placeholders until then)."
+    >
+      <select value={network} onChange={(e) => void onChange(e.target.value)} style={{ ...ctl, width: 160 }}>
+        <option value="testnet">Arc Testnet (5042002)</option>
+        <option value="mainnet">Arc Mainnet {mainnetReady ? '' : '(pending config)'}</option>
+      </select>
+      {err && <span style={{ color: '#a00', fontSize: 11 }}>{err}</span>}
+    </SettingRow>
+  )
+}
+
 const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const uiScale = useUiStore((s) => s.scale)
@@ -67,6 +110,7 @@ const Settings: React.FC = () => {
                 <option value="10000">10s</option>
               </select>
             </SettingRow>
+            <NetworkSetting />
           </div>
         )
 

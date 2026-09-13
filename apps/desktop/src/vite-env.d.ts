@@ -91,6 +91,18 @@ interface AgentInstanceApiType {
   createdAt: number
   lastRunAt: number | null
   lastMessage: string | null
+  lastAnalysis: {
+    symbol: string
+    action: 'BUY' | 'SELL' | 'HOLD'
+    confidence: number
+    summary: string
+    reasons: string[]
+    risks: string[]
+    spreadPct: number | null
+    change24hPct: number | null
+    sourceCount: number
+    analyzedAt: number
+  } | null
   messages: {
     id: string
     at: number
@@ -104,6 +116,18 @@ interface AgentInstanceApiType {
 }
 
 interface ArcApiType {
+  getNetwork: () => Promise<{
+    network: 'testnet' | 'mainnet'
+    name: string
+    chainId: number
+    mainnetReady: boolean
+  }>
+  setNetwork: (network: string) => Promise<{
+    network: 'testnet' | 'mainnet'
+    name: string
+    chainId: number
+    mainnetReady: boolean
+  }>
   quote: (args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) => Promise<{
     amountOut: string
     decimals: number

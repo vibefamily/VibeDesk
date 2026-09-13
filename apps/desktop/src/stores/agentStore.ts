@@ -25,6 +25,20 @@ export interface AgentMessageView {
   role?: 'user' | 'agent'
 }
 
+/** Structured rule-mode analysis (the "signal" for Agent Trade Run). */
+export interface StockAnalysisView {
+  symbol: string
+  action: 'BUY' | 'SELL' | 'HOLD'
+  confidence: number
+  summary: string
+  reasons: string[]
+  risks: string[]
+  spreadPct: number | null
+  change24hPct: number | null
+  sourceCount: number
+  analyzedAt: number
+}
+
 export interface AgentInstanceView {
   id: string
   templateId: string
@@ -37,6 +51,7 @@ export interface AgentInstanceView {
   createdAt: number
   lastRunAt: number | null
   lastMessage: string | null
+  lastAnalysis: StockAnalysisView | null
   messages: AgentMessageView[]
   dataSources: string[]
   walletAuths: string[]
@@ -79,6 +94,7 @@ interface AgentState {
     content?: string
     message?: string
     status?: string
+    analysis?: StockAnalysisView
     at?: number
   }) => void
   clearError: () => void
@@ -192,6 +208,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         ...next.messages,
         { id: `evt_${Date.now()}_${next.messages.length}`, at: event.at ?? Date.now(), kind: 'error', content: event.message },
       ].slice(-60)
+    } else if (event.type === 'analysis' && event.analysis) {
+      next.lastAnalysis = event.analysis
     }
     const updated = [...agents]
     updated[idx] = next

@@ -25,6 +25,7 @@ export const START_MENU: {
     items: [
       { key: 'data-center', label: 'Data Center', icon: '📊', title: 'Data Center - Markets, News & Sources' },
       { key: 'stock-tokens', label: 'Trade Center', icon: '📈', title: 'Trade Center - Multi-Source Prices' },
+      { key: 'trade-run', label: 'Agent Trade Run', icon: '🔄', title: 'Agent Trade Run - Signal to On-chain Execution' },
       { key: 'info', label: 'Info Center', icon: '📰', title: 'Info Center - News & Tweet Feeds' },
       { key: 'data', label: 'Data Sources', icon: '📡', title: 'Data Sources' },
     ],

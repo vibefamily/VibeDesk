@@ -8,6 +8,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron'
 import type { WalletMeta } from '@vibe/core/wallet'
+import type { StockAnalysis } from '@vibe/agent-plugins'
 
 /** Template metadata exposed to the renderer (functions stripped). */
 export interface AgentTemplateView {
@@ -33,16 +34,18 @@ export interface AgentInstanceView {
   createdAt: number
   lastRunAt: number | null
   lastMessage: string | null
+  lastAnalysis: StockAnalysis | null
   messages: { id: string; at: number; kind: string; content: string }[]
 }
 
 /** Agent event pushed from the main process. */
 export interface AgentEvent {
-  type: 'status' | 'step' | 'message' | 'error'
+  type: 'status' | 'step' | 'message' | 'error' | 'analysis'
   agentId: string
   content?: string
   message?: string
   status?: string
+  analysis?: StockAnalysis
   at: number
 }
 
@@ -152,6 +155,8 @@ const vibeAPI = {
 
   // Agents (managed in the main process)
   arc: {
+    getNetwork: () => ipcRenderer.invoke('arc:getNetwork'),
+    setNetwork: (network: string) => ipcRenderer.invoke('arc:setNetwork', network),
     quote: (args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) =>
       ipcRenderer.invoke('arc:quote', args),
     balances: (args: { walletId: string; index?: number; token: string }) =>

@@ -20,10 +20,12 @@ import Dashboard from '../../views/Dashboard'
 import Strategies from '../../views/Strategies'
 import Portfolio from '../../views/Portfolio'
 import DataCenter from '../../views/DataCenter'
+import TradeRun from '../../views/TradeRun'
 
 const WINDOW_COMPONENTS: Record<string, React.FC> = {
   'data-center': DataCenter,
   'stock-tokens': StockTokens,
+  'trade-run': TradeRun,
   agents: Agents,
   'chat-center': ChatCenter,
   wallets: Wallets,

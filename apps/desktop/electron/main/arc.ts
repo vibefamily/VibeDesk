@@ -1,44 +1,81 @@
 /**
- * ARC Testnet on-chain module (main process).
+ * ARC on-chain module (main process).
  *
- * Live Uniswap v4 swaps on Arc (chainId 5042002, gas = native USDC)
- * through the Minara-deployed Universal Router. Flow:
+ * Live Uniswap v4 swaps on Arc (gas = native USDC) through the
+ * Minara-deployed Universal Router. Flow:
  *
  *   quote  ->  approve (sell only, Permit2)  ->  swap  ->  tx hash
  *
  * Private keys come from the wallet vault's in-memory agent
  * authorization (getAuthorizedKey) and never leave the main process.
- * Contract addresses are the Minara ARC Testnet deployment:
- * https://minara.fun/docs
+ * Chain/contract config lives in arc/networks.ts (testnet verified,
+ * mainnet placeholders); call setArcNetwork() to switch.
  */
 
 import { createPublicClient, createWalletClient, http, defineChain, formatUnits } from 'viem'
 import type { Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { encodeAbiParameters, encodeFunctionData, keccak256, parseAbiParameters } from 'viem'
+import {
+  ARC_NETWORKS,
+  type ArcNetworkConfig,
+  type ArcNetworkId,
+} from './arc/networks'
+
+// --- Network state ----------------------------------------------------------
+
+let currentNetwork: ArcNetworkId = 'testnet'
+
+/** Switch the active Arc network (testnet/mainnet). Rebuilds clients. */
+export function setArcNetwork(id: ArcNetworkId): void {
+  if (!ARC_NETWORKS[id]) throw new Error(`Unknown Arc network: ${id}`)
+  const cfg = ARC_NETWORKS[id]
+  if (!cfg.rpcUrl || !cfg.uniswap.v4Quoter) {
+    throw new Error(`Arc ${cfg.name} is not configured yet (placeholder addresses).`)
+  }
+  currentNetwork = id
+  cachedPublicClient = null
+  cachedChain = null
+}
+
+export function getArcNetwork(): ArcNetworkId {
+  return currentNetwork
+}
+
+export function getArcNetworkConfig(): ArcNetworkConfig {
+  return ARC_NETWORKS[currentNetwork]
+}
+
+export function isArcMainnetReady(): boolean {
+  const cfg = ARC_NETWORKS.mainnet
+  return Boolean(cfg.rpcUrl && cfg.uniswap.v4Quoter)
+}
 
 // --- Chain ------------------------------------------------------------------
 
-export const arcChain = defineChain({
-  id: 5042002,
-  name: 'Arc Testnet',
-  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: ['https://rpc.testnet.arc.network'] } },
-  blockExplorers: { default: { name: 'Arcscan', url: 'https://testnet.arcscan.app' } },
-})
+let cachedChain: ReturnType<typeof defineChain> | null = null
+function chain(): ReturnType<typeof defineChain> {
+  if (cachedChain) return cachedChain
+  const cfg = ARC_NETWORKS[currentNetwork]
+  cachedChain = defineChain({
+    id: cfg.chainId,
+    name: cfg.name,
+    nativeCurrency: { name: cfg.nativeSymbol, symbol: cfg.nativeSymbol, decimals: cfg.nativeDecimals },
+    rpcUrls: { default: { http: [cfg.rpcUrl] } },
+    blockExplorers: { default: { name: 'Arcscan', url: cfg.explorerBase } },
+  })
+  return cachedChain
+}
+
+export function arcExplorerTx(hash: string): string {
+  return `${ARC_NETWORKS[currentNetwork].explorerBase}/tx/${hash}`
+}
 
 export const ARC_EXPLORER_TX = 'https://testnet.arcscan.app/tx/'
 
-// --- Minara Uniswap v4 contracts (ARC Testnet) ------------------------------
+// --- Minara Uniswap v4 contracts (per active network) -----------------------
 
-export const ARC_CONTRACTS = {
-  permit2: '0x000000000022D473030F116dDEE9F6B43aC78BA3',
-  poolManager: '0x1d70945634F618eefdF9EDaAdB59B9A183CEF929',
-  positionManager: '0xaB247a9F430297b23D0e02FC94c3Be4bB36f3897',
-  stateView: '0xAB5E318cAa0CA7d47b71e74d1e7fFCEE03f316Bf',
-  v4Quoter: '0x01F1c491b23525B2aBe996bB9551FE36cf2b2b3E',
-  universalRouter: '0xE72F8175AB0991dBb778F6DE62009c5BF97c17f7',
-} as const
+export const ARC_CONTRACTS = (): ArcNetworkConfig['uniswap'] => ARC_NETWORKS[currentNetwork].uniswap
 
 /** Native USDC placeholder used as currency0 in Minara pools. */
 export const NATIVE_USDC = '0x0000000000000000000000000000000000000000' as `0x${string}`
@@ -51,7 +88,7 @@ export const MINARA_FEE_HOOK = '0xA6CcB619818b822E683B16bd5eb041970e6ce0CC' as `
 // viem 2.56's generic inference is unreliable for contract calls in this
 // monorepo's TS setup; the clients below keep the exact viem runtime API
 // with explicit loose types (runtime behavior is unchanged and verified).
-const publicClient = createPublicClient({ chain: arcChain, transport: http() }) as unknown as {
+interface LoosePublicClient {
   getBalance: (args: { address: `0x${string}` }) => Promise<bigint>
   readContract: (args: { address: `0x${string}`; abi: unknown; functionName: string; args: unknown[] }) => Promise<unknown>
   call: (args: { to: `0x${string}`; data: `0x${string}` }) => Promise<{ data: `0x${string}` }>
@@ -62,6 +99,14 @@ const publicClient = createPublicClient({ chain: arcChain, transport: http() }) 
     functionName: string
     args: unknown[]
   }) => Promise<{ result: unknown[] }>
+}
+
+let cachedPublicClient: LoosePublicClient | null = null
+function publicClient(): LoosePublicClient {
+  if (!cachedPublicClient) {
+    cachedPublicClient = createPublicClient({ chain: chain(), transport: http() }) as unknown as LoosePublicClient
+  }
+  return cachedPublicClient
 }
 
 // --- ABI fragments ----------------------------------------------------------
@@ -237,8 +282,8 @@ export interface ArcQuoteParams {
  *  (tokens may use 6 or 18 decimals; native USDC is 18). */
 export async function arcQuote(params: ArcQuoteParams): Promise<{ amountOut: bigint; decimals: number }> {
   const poolKey = poolKeyFor(params.token, params.hooks)
-  const result = await publicClient.simulateContract({
-    address: ARC_CONTRACTS.v4Quoter,
+  const result = await publicClient().simulateContract({
+    address: ARC_CONTRACTS().v4Quoter,
     abi: quoterAbi,
     functionName: 'quoteExactInputSingle',
     args: [
@@ -258,7 +303,7 @@ export async function arcQuote(params: ArcQuoteParams): Promise<{ amountOut: big
 async function tokenDecimals(token: string): Promise<number> {
   if (!token || token === NATIVE_USDC) return 18
   try {
-    const dec = (await publicClient.readContract({
+    const dec = (await publicClient().readContract({
       address: token as `0x${string}`,
       abi: erc20DecimalsAbi,
       functionName: 'decimals',
@@ -337,29 +382,29 @@ async function ensureSellApprovals(
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000)
   // 1) token.approve(PERMIT2)
-  const tokenAllowance = (await publicClient.readContract({
+  const tokenAllowance = (await publicClient().readContract({
     address: token as `0x${string}`,
     abi: erc20Abi,
     functionName: 'allowance',
-    args: [account.address, ARC_CONTRACTS.permit2],
+    args: [account.address, ARC_CONTRACTS().permit2],
   })) as bigint
   if (tokenAllowance < amountIn) {
     const hash = await wallet.writeContract({
       address: token as `0x${string}`,
       abi: erc20Abi,
       functionName: 'approve',
-      args: [(1n << 256n) - 1n, ARC_CONTRACTS.permit2],
+      args: [(1n << 256n) - 1n, ARC_CONTRACTS().permit2],
     })
-    await publicClient.waitForTransactionReceipt({ hash })
+    await publicClient().waitForTransactionReceipt({ hash })
   }
   // 2) Permit2.approve(token, ROUTER)
   const allowanceData = encodeFunctionData({
     abi: permit2AllowanceAbi,
     functionName: 'allowance',
-    args: [account.address, token, ARC_CONTRACTS.universalRouter],
+    args: [account.address, token, ARC_CONTRACTS().universalRouter],
   })
-  const allowanceRes = await publicClient.call({
-    to: ARC_CONTRACTS.permit2,
+  const allowanceRes = await publicClient().call({
+    to: ARC_CONTRACTS().permit2,
     data: allowanceData,
   })
   // permit2 allowance returns (uint160, uint48, uint48), one 32-byte word each.
@@ -368,12 +413,12 @@ async function ensureSellApprovals(
   const expiration = BigInt('0x' + (words[1] ?? '0'))
   if (allowed < amountIn || expiration <= now + 60) {
     const hash = await wallet.writeContract({
-      address: ARC_CONTRACTS.permit2,
+      address: ARC_CONTRACTS().permit2,
       abi: permit2ApproveAbi,
       functionName: 'approve',
-      args: [token, ARC_CONTRACTS.universalRouter, (1n << 160n) - 1n, now + 30 * 24 * 3600],
+      args: [token, ARC_CONTRACTS().universalRouter, (1n << 160n) - 1n, now + 30 * 24 * 3600],
     })
-    await publicClient.waitForTransactionReceipt({ hash })
+    await publicClient().waitForTransactionReceipt({ hash })
   }
 }
 
@@ -391,7 +436,7 @@ export interface ArcSwapParams {
 /** Broadcast a v4 swap. Returns the tx hash; receipt settles after. */
 export async function arcSwap(params: ArcSwapParams): Promise<{ hash: string }> {
   const account = privateKeyToAccount(params.privateKey as `0x${string}`)
-  const wallet = createWalletClient({ account, chain: arcChain, transport: http() }) as unknown as {
+  const wallet = createWalletClient({ account, chain: chain(), transport: http() }) as unknown as {
     writeContract: (args: { address: `0x${string}`; abi: unknown; functionName: string; args: unknown[] }) => Promise<`0x${string}`>
     sendTransaction: (args: { to: `0x${string}`; data: `0x${string}`; value?: bigint }) => Promise<`0x${string}`>
   }
@@ -409,7 +454,7 @@ export async function arcSwap(params: ArcSwapParams): Promise<{ hash: string }> 
   })
 
   const hash = await wallet.sendTransaction({
-    to: ARC_CONTRACTS.universalRouter,
+    to: ARC_CONTRACTS().universalRouter,
     data,
     value: params.zeroForOne ? params.amountIn : 0n,
   })
@@ -418,7 +463,7 @@ export async function arcSwap(params: ArcSwapParams): Promise<{ hash: string }> 
 
 /** Wait for a tx receipt (used by the UI to show success/failure). */
 export async function arcWaitReceipt(hash: string): Promise<{ status: 'success' | 'reverted' }> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: hash as `0x${string}` })
+  const receipt = await publicClient().waitForTransactionReceipt({ hash: hash as `0x${string}` })
   return { status: receipt.status === 'success' ? 'success' : 'reverted' }
 }
 
@@ -434,10 +479,10 @@ export async function arcBalances(
   token: string,
 ): Promise<ArcBalances> {
   const tokenAddr = token as `0x${string}`
-  const native = await publicClient.getBalance({ address })
+  const native = await publicClient().getBalance({ address })
   let tokenBalance = 0n
   if (token && token !== NATIVE_USDC) {
-    tokenBalance = (await publicClient.readContract({
+    tokenBalance = (await publicClient().readContract({
       address: tokenAddr,
       abi: erc20Abi,
       functionName: 'balanceOf',

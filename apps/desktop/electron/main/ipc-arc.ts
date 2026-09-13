@@ -8,7 +8,16 @@
  */
 
 import { ipcMain } from 'electron'
-import { arcQuote, arcSwap, arcBalances, arcWaitReceipt } from './arc'
+import {
+  arcQuote,
+  arcSwap,
+  arcBalances,
+  arcWaitReceipt,
+  setArcNetwork,
+  getArcNetwork,
+  isArcMainnetReady,
+  getArcNetworkConfig,
+} from './arc'
 import type { VaultWalletManager } from '@vibe/core/wallet'
 
 export interface ArcIpcDeps {
@@ -16,6 +25,31 @@ export interface ArcIpcDeps {
 }
 
 export function setupArcIpc({ getWalletManager }: ArcIpcDeps): void {
+  // Network switching (testnet verified / mainnet placeholders).
+  ipcMain.handle('arc:getNetwork', () => {
+    const cfg = getArcNetworkConfig()
+    return {
+      network: getArcNetwork(),
+      name: cfg.name,
+      chainId: cfg.chainId,
+      mainnetReady: isArcMainnetReady(),
+    }
+  })
+
+  ipcMain.handle('arc:setNetwork', async (_e, network: string) => {
+    if (network !== 'testnet' && network !== 'mainnet') {
+      throw new Error(`Unknown Arc network: ${network}`)
+    }
+    setArcNetwork(network)
+    const cfg = getArcNetworkConfig()
+    return {
+      network: getArcNetwork(),
+      name: cfg.name,
+      chainId: cfg.chainId,
+      mainnetReady: isArcMainnetReady(),
+    }
+  })
+
   ipcMain.handle('arc:quote', async (_e, args: { token: string; zeroForOne: boolean; amountIn: string; hooks?: string }) => {
     const { amountOut, decimals } = await arcQuote({
       token: args.token,

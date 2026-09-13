@@ -62,6 +62,9 @@ export interface AgentInstanceView {
   lastRunAt: number | null
   /** Latest final message content */
   lastMessage: string | null
+  /** Latest structured analysis (rule mode) - the "signal" for the
+   *  Agent Trade Run closed loop. Null until the first rule run. */
+  lastAnalysis: StockAnalysis | null
   /** Recent output lines (capped) */
   messages: AgentMessageView[]
   /** Data source ids this agent may query (empty = all registered). */
@@ -78,6 +81,7 @@ export type AgentManagerEvent =
   | { type: 'step'; agentId: string; content: string; at: number }
   | { type: 'message'; agentId: string; content: string; at: number }
   | { type: 'error'; agentId: string; message: string; at: number }
+  | { type: 'analysis'; agentId: string; analysis: StockAnalysis; at: number }
 
 type Listener = (event: AgentManagerEvent) => void
 
@@ -232,6 +236,7 @@ export class AgentManager {
             createdAt: typeof view.createdAt === 'number' ? view.createdAt : Date.now(),
             lastRunAt: typeof view.lastRunAt === 'number' ? view.lastRunAt : null,
             lastMessage: typeof view.lastMessage === 'string' ? view.lastMessage : null,
+            lastAnalysis: view.lastAnalysis ?? null,
             messages: Array.isArray(view.messages)
               ? view.messages.slice(-MAX_MESSAGES)
               : [],
@@ -289,6 +294,7 @@ export class AgentManager {
       createdAt: Date.now(),
       lastRunAt: null,
       lastMessage: null,
+      lastAnalysis: null,
       messages: [],
       dataSources: options.dataSources ?? [],
       walletAuths: options.walletAuths ?? [],
@@ -447,6 +453,10 @@ export class AgentManager {
         ticks = new Map()
       }
       const analysis: StockAnalysis = analyzeStock(symbol, ticks)
+      // Emit the structured signal so the renderer can power the
+      // Agent Trade Run closed loop (signal -> intent -> execution).
+      managed.view.lastAnalysis = analysis
+      this.emit({ type: 'analysis', agentId: managed.view.id, analysis, at: Date.now() })
       parts.push(formatAnalysis(analysis))
     }
     return parts.join('\n\n')
