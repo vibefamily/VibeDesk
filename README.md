@@ -2,7 +2,7 @@
 
 > *Build start from ETH Global 2026*
 
-> **Wallet (account) + Data + AI = Agentic Trading**
+> **Account (wallet or CEX key) + Data + AI = Agentic Trading**
 
 A local-first desktop app where your AI agents read live multi-source market data, analyze the news, and execute real on-chain trades through wallets you have pre-authorized — confirm each trade or let it auto-run. Your wallet keys stay encrypted on your machine; agents can only request signatures, never see keys. **Out of the box** — the agent runtime ships inside the app, no server to install or run yourself.
 
@@ -14,7 +14,8 @@ A local-first desktop app where your AI agents read live multi-source market dat
 
 - **Local-first wallet vault** — manage multiple wallets on your own machine; seed phrases and private keys are generated locally and never shown in plain text
 - **Per-wallet agent approval** — grant an agent access to a specific wallet with one click, revoke it anytime
-- **Process isolation** — the agent and the wallet live in separate processes; the agent can only *request signatures* over IPC and can never read your secrets [TODO]
+- **Keys out of reach** — the agent never reads your private keys or seed phrases; the vault decrypts them only in memory at signing time, and only for wallets you have granted
+- **Process isolation** — the agent and the wallet will live in separate processes; the agent can only *request signatures* over IPC and can never read your secrets [TODO: enhancement]
 
 ## 02 · AI
 
@@ -37,12 +38,11 @@ A local-first desktop app where your AI agents read live multi-source market dat
 ## Highlights
 
 - 🖥️ **React95 desktop** — draggable windows, taskbar, start menu, desktop shortcuts
-- 📊 **Multi-source prices** — Robinhood, Yahoo, Hyperliquid, Binance in one view, with SQLite-backed historical time-series charts (1-minute ticks, multi-provider overlay)
+- 👛 **Local wallet vault** — security first: HD mnemonic + private keys, AES-encrypted, MetaMask-style (reveal requires password), multi-account; private keys never leave the main process
 - 🤖 **Multi-agent** — rule-mode deterministic analysis (works with zero API keys) or LLM mode (OpenAI-compatible, DeepSeek, Ollama); per-agent context, skills, data-source and wallet authorization; agents run on a schedule
-- 👛 **Local wallet vault** — HD mnemonic + private keys, AES-encrypted, MetaMask-style (reveal requires password), multi-account; private keys never leave the main process
-- ⛓️ **On-chain execution** — real swaps on the Arc testnet (Uniswap v4 pools, gas = native USDC): quote → approve → sign → broadcast → receipt, all in the main process
+- 📊 **Multi-source prices** — Robinhood, Yahoo, Hyperliquid, Binance in one view, with SQLite-backed historical time-series charts (1-minute ticks, multi-provider overlay)
+- ⛓️ **On-chain execution** — real swaps on the Arc testnet (Uniswap v4 pools, gas = native USDC): quote → approve → sign → broadcast → receipt, all in the main process; testnet verified, mainnet placeholders ready (switch in Settings)
 - 🔄 **Agent Trade Run** — the closed loop, visualized: signal → intent → quote → authorize → sign → broadcast → receipt. Agent proposes, human disposes.
-- 🌐 **Dual-network Arc config** — testnet verified, mainnet placeholders ready (switch in Settings)
 
 ## Architecture
 
