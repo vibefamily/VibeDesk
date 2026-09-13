@@ -306,6 +306,7 @@ app.whenReady().then(async () => {
     getWallet: getWalletManager,
     configPath: path.join(app.getPath('userData'), 'agent-config.json'),
     agentsDir: path.join(app.getPath('userData'), 'agents'),
+    piAgentDir: path.join(app.getPath('userData'), 'pi'),
     infoStore: () => getInfoManager(),
   })
 

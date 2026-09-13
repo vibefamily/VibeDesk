@@ -67,6 +67,8 @@ export async function setupAgentIpc(
     configPath: string
     /** Directory to persist agent instances (M5). */
     agentsDir: string
+    /** Directory for the pi agent harness (settings + session artifacts). */
+    piAgentDir: string
     /** Resolve the Info Center manager (M3); enables the read_information tool. */
     infoStore?: () => InfoManager | null
   },
@@ -82,6 +84,7 @@ export async function setupAgentIpc(
   agentManager = new AgentManager({
     market,
     agentsDir: options.agentsDir,
+    piAgentDir: options.piAgentDir,
     ...(resolveInfo
       ? {
           infoStore: {
