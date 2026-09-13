@@ -23,6 +23,8 @@ export interface AgentMessageView {
   kind: string
   content: string
   role?: 'user' | 'agent'
+  /** Streamed reasoning text (pi thinking_delta), shown above the reply. */
+  thinking?: string
 }
 
 /** Structured rule-mode analysis (the "signal" for Agent Trade Run). */
@@ -39,6 +41,30 @@ export interface StockAnalysisView {
   analyzedAt: number
 }
 
+export type ProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+
+export interface ProviderView {
+  id: string
+  name: string
+  api: ProviderApi
+  baseUrl: string
+  models: string[]
+  model: string
+  active: boolean
+  hasKey: boolean
+}
+
+export interface ProviderInput {
+  id?: string
+  name: string
+  api: ProviderApi
+  baseUrl: string
+  apiKey?: string
+  models: string[]
+  model: string
+  active?: boolean
+}
+
 export interface AgentInstanceView {
   id: string
   templateId: string
@@ -46,6 +72,7 @@ export interface AgentInstanceView {
   icon: string
   status: 'idle' | 'running' | 'completed' | 'error' | 'stopped'
   mode: 'llm' | 'rule'
+  model?: string | null
   symbols: string[]
   intervalMs: number
   createdAt: number
@@ -87,6 +114,12 @@ interface AgentState {
   dataSources: string[]
   setDataSourceAuth: (id: string, sources: string[]) => Promise<void>
   setWalletAuth: (id: string, keys: string[]) => Promise<void>
+  setLlmModel: (model: string) => Promise<void>
+  listProviders: () => Promise<ProviderView[]>
+  saveProvider: (input: ProviderInput) => Promise<ProviderView>
+  activateProvider: (id: string) => Promise<ProviderView[]>
+  removeProvider: (id: string) => Promise<ProviderView[]>
+  setAgentModel: (args: { id: string; model: string }) => Promise<AgentInstanceView | null>
   setLlmConfig: (config: LlmConfig | null) => Promise<{ mode: 'llm' | 'rule' }>
   getLlmConfig: () => Promise<LlmConfig | null>
   applyEvent: (event: {
@@ -94,6 +127,7 @@ interface AgentState {
     agentId: string
     content?: string
     message?: string
+    messageId?: string
     status?: string
     analysis?: StockAnalysisView
     at?: number
@@ -181,6 +215,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     await get().refresh()
   },
 
+  setLlmModel: async (model: string) => {
+    await api.setLlmModel(model)
+    await get().refresh()
+  },
+
+  listProviders: () => api.listProviders(),
+  saveProvider: (input) => api.saveProvider(input),
+  activateProvider: (id) => api.activateProvider(id),
+  removeProvider: (id) => api.removeProvider(id),
+  setAgentModel: async (args) => {
+    const updated = await api.setAgentModel(args)
+    if (updated) await get().refresh()
+    return updated
+  },
+
   setLlmConfig: async (config) => {
     const result = await api.setLlmConfig(config)
     set({ mode: result.mode })
@@ -216,6 +265,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       ].slice(-60)
     } else if (event.type === 'analysis' && event.analysis) {
       next.lastAnalysis = event.analysis
+    } else if (event.type === 'stream' && event.content != null && event.messageId) {
+      const idx = next.messages.findIndex((m) => m.id === event.messageId)
+      if (idx >= 0) {
+        const msgs = [...next.messages]
+        msgs[idx] = { ...msgs[idx]!, content: event.content }
+        next.messages = msgs
+      } else {
+        next.messages = [
+          ...next.messages,
+          { id: event.messageId, at: event.at ?? Date.now(), kind: 'message', content: event.content },
+        ].slice(-60)
+      }
+    } else if (event.type === 'thinking' && event.content != null && event.messageId) {
+      const idx = next.messages.findIndex((m) => m.id === event.messageId)
+      if (idx >= 0) {
+        const msgs = [...next.messages]
+        msgs[idx] = { ...msgs[idx]!, thinking: event.content }
+        next.messages = msgs
+      }
     }
     const updated = [...agents]
     updated[idx] = next

@@ -47,6 +47,8 @@ export interface AgentMessageView {
   content: string
   /** Sender for chat bubbles (user vs agent). */
   role?: 'user' | 'agent'
+  /** Streamed reasoning text (pi thinking_delta), shown above the reply. */
+  thinking?: string
 }
 
 /** UI-facing view of an agent instance. */
@@ -79,6 +81,28 @@ export interface AgentInstanceView {
    * resumes across restarts. Null until the first pi run completes.
    */
   piSessionFile?: string | null
+  /** Agent-specific model override (falls back to the active provider's default). */
+  model?: string | null
+}
+
+/** One configured LLM provider (OpenAI-compatible, Anthropic or Gemini). */
+export interface LlmProviderConfig {
+  id: string
+  name: string
+  /** pi api adapter: openai-completions (also Ollama), anthropic-messages, google-generative-ai */
+  api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+  baseUrl: string
+  apiKey: string
+  /** Models this provider offers (agent may pick any of these). */
+  models: string[]
+  /** Provider-default model (active provider's default). */
+  model: string
+  active: boolean
+}
+
+/** Persisted LLM settings file: a list of providers, one active. */
+export type LlmConfigFile = {
+  providers: LlmProviderConfig[]
 }
 
 /** Events emitted by the AgentManager. */
@@ -88,6 +112,8 @@ export type AgentManagerEvent =
   | { type: 'message'; agentId: string; content: string; at: number }
   | { type: 'error'; agentId: string; message: string; at: number }
   | { type: 'analysis'; agentId: string; analysis: StockAnalysis; at: number }
+  | { type: 'stream'; agentId: string; messageId: string; content: string; at: number }
+  | { type: 'thinking'; agentId: string; messageId: string; content: string; at: number }
 
 type Listener = (event: AgentManagerEvent) => void
 
@@ -98,6 +124,8 @@ interface ManagedAgent {
   timer: ReturnType<typeof setInterval> | null
   symbols: string[]
   running: boolean
+  /** Id of the assistant message currently being streamed (null when idle). */
+  streamMsgId: string | null
 }
 
 const MAX_MESSAGES = 500
@@ -133,6 +161,7 @@ export class AgentManager {
   private market: MarketDataAggregator
   private walletAccess?: WalletReadAccess
   private infoStore?: InfoStore
+  private providers: LlmProviderConfig[] = []
   private llmProvider: OpenAICompatibleProvider | null = null
   private storage: AgentStorage | null = null
   private saveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -173,19 +202,139 @@ export class AgentManager {
     return this.templates.get(id)
   }
 
-  // --- LLM configuration ---
+  // --- LLM configuration (multi-provider, one active) ---
 
-  /** Configure (or clear) the OpenAI-compatible LLM provider. */
-  setLlmConfig(config: OpenAIConfig | null): void {
-    if (!config || !config.apiKey || !config.baseUrl) {
+  /** Replace the whole provider list (used at startup from the config file). */
+  setProviders(file: LlmConfigFile | null): void {
+    this.providers = []
+    this.llmProvider = null
+    if (!file || !Array.isArray(file.providers)) return
+    for (const p of file.providers) {
+      if (!p.id || !p.baseUrl || !p.apiKey || !p.model) continue
+      this.providers.push({
+        id: p.id,
+        name: p.name || p.id,
+        api: p.api ?? 'openai-completions',
+        baseUrl: p.baseUrl,
+        apiKey: p.apiKey,
+        models: Array.isArray(p.models) && p.models.length > 0 ? p.models : [p.model],
+        model: p.model,
+        active: p.active === true,
+      })
+    }
+    if (this.providers.length === 0) return
+    const active = this.providers.find((p) => p.active) ?? this.providers[0]!
+    active.active = true
+    this.syncProvider()
+  }
+
+  /** All providers (full configs; the IPC layer masks keys for the renderer). */
+  listProviders(): LlmProviderConfig[] {
+    return this.providers.map((p) => ({ ...p }))
+  }
+
+  /** Add or update one provider. Empty apiKey keeps the stored key. */
+  saveProvider(input: {
+    id?: string
+    name: string
+    api: LlmProviderConfig['api']
+    baseUrl: string
+    apiKey?: string
+    models: string[]
+    model: string
+    active?: boolean
+  }): LlmProviderConfig {
+    if (!input.baseUrl.trim()) throw new Error('Base URL is required')
+    const id = input.id ?? `prov_${Date.now().toString(36)}`
+    const models = input.models.length > 0 ? input.models : [input.model]
+    const existing = this.providers.find((p) => p.id === id)
+    const merged: LlmProviderConfig = {
+      id,
+      name: input.name.trim() || id,
+      api: input.api,
+      baseUrl: input.baseUrl.trim(),
+      apiKey: input.apiKey && input.apiKey.trim() ? input.apiKey.trim() : (existing?.apiKey ?? ''),
+      models,
+      model: input.model.trim() || models[0]!,
+      active: input.active === true,
+    }
+    if (!merged.apiKey) throw new Error('API key is required')
+    if (existing) {
+      const idx = this.providers.indexOf(existing)
+      this.providers[idx] = merged
+    } else {
+      if (this.providers.length === 0) merged.active = true
+      this.providers.push(merged)
+    }
+    if (merged.active) this.syncProvider()
+    return { ...merged }
+  }
+
+  /** Activate one provider (only one active at a time). */
+  activateProvider(id: string): void {
+    if (!this.providers.some((p) => p.id === id)) throw new Error(`Unknown provider: ${id}`)
+    for (const p of this.providers) p.active = p.id === id
+    this.syncProvider()
+  }
+
+  /** Remove a provider; if it was active, the first remaining becomes active. */
+  removeProvider(id: string): void {
+    const wasActive = this.providers.find((p) => p.id === id)?.active === true
+    this.providers = this.providers.filter((p) => p.id !== id)
+    if (wasActive && this.providers.length > 0) this.providers[0]!.active = true
+    this.syncProvider()
+  }
+
+  /** Rebuild the runtime provider from the active config. */
+  private syncProvider(): void {
+    const active = this.providers.find((p) => p.active)
+    if (!active) {
       this.llmProvider = null
       return
     }
-    if (this.llmProvider) {
-      this.llmProvider.updateConfig(config)
-    } else {
-      this.llmProvider = new OpenAICompatibleProvider(config)
+    const cfg = { baseUrl: active.baseUrl, apiKey: active.apiKey, model: active.model }
+    if (this.llmProvider) this.llmProvider.updateConfig(cfg)
+    else this.llmProvider = new OpenAICompatibleProvider(cfg)
+  }
+
+  /** Change the active provider's default model (used by legacy callers). */
+  setActiveModel(model: string): void {
+    const active = this.providers.find((p) => p.active)
+    if (!active) throw new Error('No LLM configured')
+    active.model = model.trim() || active.model
+    if (!active.models.includes(active.model)) active.models.push(active.model)
+    this.syncProvider()
+  }
+
+  /** Legacy single-config entry point (compat with old callers/tests). */
+  setLlmConfig(config: OpenAIConfig | null): void {
+    if (!config || !config.apiKey || !config.baseUrl) {
+      this.providers = []
+      this.llmProvider = null
+      return
     }
+    this.providers = [
+      {
+        id: 'default',
+        name: 'Default',
+        api: 'openai-completions',
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        models: [config.model],
+        model: config.model,
+        active: true,
+      },
+    ]
+    this.syncProvider()
+  }
+
+  /** Agent-specific model override for one agent (falls back to the active provider's default). */
+  setAgentModel(id: string, model: string): void {
+    const managed = this.agents.get(id)
+    if (!managed) throw new Error(`Unknown agent: ${id}`)
+    managed.view.model = model.trim() || null
+    if (this.llmProvider) managed.agent = this.buildAgent(managed)
+    this.persist(id)
   }
 
   getLlmConfig(): OpenAIConfig | null {
@@ -267,6 +416,7 @@ export class AgentManager {
           timer: null,
           symbols: Array.isArray(view.symbols) ? view.symbols : [...template.defaultSymbols],
           running: false,
+          streamMsgId: null,
         }
         if (this.llmProvider) managed.agent = this.buildAgent(managed)
         this.agents.set(view.id, managed)
@@ -327,6 +477,7 @@ export class AgentManager {
       timer: null,
       symbols,
       running: false,
+      streamMsgId: null,
     }
 
     // Build the ReAct agent when LLM mode is available.
@@ -355,7 +506,12 @@ export class AgentManager {
 
   private buildAgent(managed: ManagedAgent): Agent | PiAgent {
     const { template, view } = managed
-    const config: AgentConfig = template.buildConfig(view.id, view.name, this.llmProvider!.getConfig().model)
+    const activeProvider = this.providers.find((p) => p.active)
+    const config: AgentConfig = template.buildConfig(
+      view.id,
+      view.name,
+      view.model ?? this.llmProvider!.getConfig().model,
+    )
     const enabled = this.enabledToolsets ?? ['market', 'wallet-read', 'info']
     const tools = [
       ...(enabled.includes('market')
@@ -375,9 +531,10 @@ export class AgentManager {
     const piAgent = new PiAgent({
       agentId: view.id,
       agentName: view.name,
+      api: activeProvider?.api ?? 'openai-completions',
       baseUrl: this.llmProvider!.getConfig().baseUrl,
       apiKey: this.llmProvider!.getConfig().apiKey,
-      model: this.llmProvider!.getConfig().model,
+      model: view.model ?? this.llmProvider!.getConfig().model,
       systemPrompt: config.systemPrompt,
       tools,
       piAgentDir: this.piAgentDir ?? process.cwd(),
@@ -387,8 +544,49 @@ export class AgentManager {
       if (event.type === 'step') {
         const step = event.data as { type: string; content: string; timestamp: number }
         this.pushMessage(view.id, { kind: 'step', content: step.content, at: step.timestamp })
+      } else if (event.type === 'assistant_start') {
+        // Begin a reply bubble; stream_delta / thinking_delta append to it.
+        this.pushMessage(view.id, { kind: 'message', role: 'agent', content: '' })
+        const msgs = managed.view.messages
+        managed.streamMsgId = msgs[msgs.length - 1]?.id ?? null
+      } else if (event.type === 'stream_delta') {
+        const delta = String(event.data)
+        if (managed.streamMsgId) {
+          const msgs = managed.view.messages
+          const idx = msgs.findIndex((m) => m.id === managed.streamMsgId)
+          if (idx >= 0) {
+            const content = msgs[idx]!.content + delta
+            msgs[idx] = { ...msgs[idx]!, content }
+            this.persist(view.id)
+            this.emit({ type: 'stream', agentId: view.id, messageId: managed.streamMsgId, content, at: Date.now() })
+          }
+        }
+      } else if (event.type === 'thinking_delta') {
+        const delta = String(event.data)
+        if (managed.streamMsgId) {
+          const msgs = managed.view.messages
+          const idx = msgs.findIndex((m) => m.id === managed.streamMsgId)
+          if (idx >= 0) {
+            const thinking = (msgs[idx]!.thinking ?? '') + delta
+            msgs[idx] = { ...msgs[idx]!, thinking }
+            this.persist(view.id)
+            this.emit({ type: 'thinking', agentId: view.id, messageId: managed.streamMsgId, content: thinking, at: Date.now() })
+          }
+        }
       } else if (event.type === 'final_message') {
-        this.pushMessage(view.id, { kind: 'message', content: String(event.data), at: Date.now() })
+        const text = String(event.data)
+        if (managed.streamMsgId) {
+          const msgs = managed.view.messages
+          const idx = msgs.findIndex((m) => m.id === managed.streamMsgId)
+          if (idx >= 0) {
+            msgs[idx] = { ...msgs[idx]!, content: text }
+            this.persist(view.id)
+            this.emit({ type: 'stream', agentId: view.id, messageId: managed.streamMsgId, content: text, at: Date.now() })
+          }
+        } else {
+          this.pushMessage(view.id, { kind: 'message', content: text, at: Date.now() })
+        }
+        managed.streamMsgId = null
       } else if (event.type === 'error') {
         this.emit({ type: 'error', agentId: view.id, message: String(event.data), at: Date.now() })
       }
@@ -483,6 +681,7 @@ export class AgentManager {
       )
     }
     managed.running = true
+    managed.streamMsgId = null
     managed.view.status = 'running'
     this.emit({ type: 'status', agentId: id, status: 'running', at: Date.now() })
     this.pushMessage(id, { kind: 'message', role: 'user', content: text, at: Date.now() })
@@ -502,6 +701,7 @@ export class AgentManager {
       throw err
     } finally {
       managed.running = false
+      managed.streamMsgId = null
     }
   }
 

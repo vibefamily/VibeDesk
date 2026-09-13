@@ -31,6 +31,8 @@ export interface PiAgentOptions {
   agentId: string
   /** Agent display name. */
   agentName: string
+  /** pi api adapter: openai-completions (OpenAI/DeepSeek/Ollama), anthropic-messages, google-generative-ai. */
+  api?: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
   /** OpenAI-compatible base URL (OpenAI / DeepSeek / Ollama / ...). */
   baseUrl: string
   /** API key (may be empty for local providers like Ollama). */
@@ -123,7 +125,7 @@ export class PiAgent {
         name: agentName,
         baseUrl,
         ...(apiKey ? { apiKey } : {}),
-        api: 'openai-completions',
+        api: this.config.api ?? 'openai-completions',
         models: [
           {
             id: model,
@@ -193,10 +195,37 @@ export class PiAgent {
   private handlePiEvent(event: AgentEvent): void {
     if (!event) return
     switch (event.type) {
+      case 'message_start': {
+        // Only assistant messages start a reply bubble; the user prompt
+        // and tool-result messages also emit message_start/end.
+        const msg = event.message as unknown as { role?: string }
+        if (msg?.role && msg.role !== 'assistant') break
+        this.emit({ type: 'assistant_start', data: {} })
+        break
+      }
+      case 'message_update': {
+        // Streaming deltas: text grows the reply, thinking grows the
+        // reasoning block shown above it.
+        const update = event as unknown as {
+          assistantMessageEvent?: { type?: string; delta?: string }
+        }
+        const ev = update.assistantMessageEvent
+        if (!ev) break
+        if (ev.type === 'text_delta' && ev.delta) {
+          this.emit({ type: 'stream_delta', data: ev.delta })
+        } else if (ev.type === 'thinking_delta' && ev.delta) {
+          this.emit({ type: 'thinking_delta', data: ev.delta })
+        }
+        break
+      }
       case 'message_end': {
         const msg = event.message as unknown as {
+          role?: string
           content?: Array<{ type?: string; text?: string }>
         }
+        // pi emits message_end for every message including the user
+        // prompt echo; only assistant text becomes a chat reply.
+        if (msg?.role && msg.role !== 'assistant') break
         const text = (msg?.content ?? [])
           .filter((b) => b.type === 'text')
           .map((b) => b.text ?? '')

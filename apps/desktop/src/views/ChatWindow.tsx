@@ -31,6 +31,13 @@ function fmtTime(ts: number | null): string {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+/** True when the newest bubble is the agent reply being streamed right now
+ *  (in that case we show the growing bubble instead of a typing hint). */
+function isStreamingLast(messages: { role?: string; content: string }[]): boolean {
+  const last = messages[messages.length - 1]
+  return !!last && last.role === 'agent' && last.content.length > 0
+}
+
 const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
   const { agents, mode, refresh, chat, clearChat, getLlmConfig } = useAgentStore()
   const chatIntent = useWindowStore((s) => s.chatIntent)
@@ -229,7 +236,13 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
             agentId={agent.id}
             initialDataSources={agent.dataSources}
             initialWalletAuths={agent.walletAuths}
-            onSaved={() => void refresh()}
+            onSaved={() => {
+              void refresh()
+              // Reflect a model switch in the header right away.
+              void getLlmConfig().then((cfg) => {
+                setModelLabel(cfg?.model ? String(cfg.model) : 'no LLM configured')
+              })
+            }}
           />
         </div>
       ) : (
@@ -250,6 +263,11 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
           borderColor: '#808080 #fff #fff #808080',
         }}
       >
+        {sending && !isStreamingLast(agent.messages) && (
+          <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic', padding: 4 }}>
+            {agent.name} is thinking…
+          </div>
+        )}
         {agent.messages.length === 0 && (
           <div style={{ fontSize: 11, color: '#666', padding: 4 }}>
             {mode === 'llm'
@@ -313,6 +331,23 @@ const ChatWindow: React.FC<{ agentId: string }> = ({ agentId }) => {
                 <span style={{ fontSize: 9, color: '#555', display: 'block' }}>
                   {agent.name} · {fmtTime(m.at)}
                 </span>
+                {m.thinking ? (
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 10,
+                      color: '#666',
+                      fontStyle: 'italic',
+                      borderBottom: '1px dotted #aaa',
+                      marginBottom: 3,
+                      paddingBottom: 3,
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {m.thinking}
+                  </span>
+                ) : null}
                 {m.content}
               </span>
             </div>

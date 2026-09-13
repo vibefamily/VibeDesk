@@ -191,6 +191,63 @@ interface AgentApiType {
   clearMessages: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   runOnce: (args: { id: string }) => Promise<AgentInstanceApiType | null>
   setLlmConfig: (config: { baseUrl: string; apiKey: string; model: string } | null) => Promise<{ mode: 'llm' | 'rule' }>
+  setLlmModel: (model: string) => Promise<{ baseUrl: string; apiKey: string; model: string } | null>
+  listProviders: () => Promise<
+    {
+      id: string
+      name: string
+      api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+      baseUrl: string
+      models: string[]
+      model: string
+      active: boolean
+      hasKey: boolean
+    }[]
+  >
+  saveProvider: (input: {
+    id?: string
+    name: string
+    api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+    baseUrl: string
+    apiKey?: string
+    models: string[]
+    model: string
+    active?: boolean
+  }) => Promise<{
+    id: string
+    name: string
+    api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+    baseUrl: string
+    models: string[]
+    model: string
+    active: boolean
+    hasKey: boolean
+  }>
+  activateProvider: (id: string) => Promise<
+    {
+      id: string
+      name: string
+      api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+      baseUrl: string
+      models: string[]
+      model: string
+      active: boolean
+      hasKey: boolean
+    }[]
+  >
+  removeProvider: (id: string) => Promise<
+    {
+      id: string
+      name: string
+      api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+      baseUrl: string
+      models: string[]
+      model: string
+      active: boolean
+      hasKey: boolean
+    }[]
+  >
+  setAgentModel: (args: { id: string; model: string }) => Promise<AgentInstanceApiType | null>
   getLlmConfig: () => Promise<{ baseUrl: string; apiKey: string; model: string } | null>
   chat: (id: string, text: string) => Promise<AgentInstanceViewApiType>
   probeOllama: () => Promise<{ ok: boolean; models: string[]; error: string | null }>

@@ -204,6 +204,22 @@ const vibeAPI = {
       model: string
     } | null) => ipcRenderer.invoke('agent:setLlmConfig', config),
     getLlmConfig: () => ipcRenderer.invoke('agent:getLlmConfig'),
+    setLlmModel: (model: string) => ipcRenderer.invoke('agent:setLlmModel', model),
+    listProviders: () => ipcRenderer.invoke('agent:listProviders'),
+    saveProvider: (input: {
+      id?: string
+      name: string
+      api: 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+      baseUrl: string
+      apiKey?: string
+      models: string[]
+      model: string
+      active?: boolean
+    }) => ipcRenderer.invoke('agent:saveProvider', input),
+    activateProvider: (id: string) => ipcRenderer.invoke('agent:activateProvider', id),
+    removeProvider: (id: string) => ipcRenderer.invoke('agent:removeProvider', id),
+    setAgentModel: (args: { id: string; model: string }) =>
+      ipcRenderer.invoke('agent:setAgentModel', args),
     chat: (id: string, text: string) => ipcRenderer.invoke('agent:chat', { id, text }),
     probeOllama: () => ipcRenderer.invoke('agent:probeOllama'),
     testConnection: (config: { baseUrl: string; apiKey: string; model: string }) =>

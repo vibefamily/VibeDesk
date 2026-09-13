@@ -143,5 +143,8 @@ export type AgentEventType =
   | 'step'
   | 'status_change'
   | 'approval_request'
+  | 'assistant_start'
+  | 'stream_delta'
+  | 'thinking_delta'
   | 'final_message'
   | 'error'

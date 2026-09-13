@@ -29,6 +29,8 @@ export type {
   AgentMessageView,
   AgentMode,
   AgentViewStatus,
+  LlmConfigFile,
+  LlmProviderConfig,
 } from './AgentManager'
 export { BUILTIN_TEMPLATES, STOCK_ANALYST_TEMPLATE, NEWS_COLLECTOR_TEMPLATE } from './templates'
 export type { AgentTemplate } from './templates'

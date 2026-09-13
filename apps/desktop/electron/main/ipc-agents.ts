@@ -11,6 +11,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { AgentManager, OpenAICompatibleProvider } from '@vibe/agent-plugins'
 import type { OpenAIConfig } from '@vibe/agent-plugins'
+import type { LlmConfigFile, LlmProviderConfig } from '@vibe/agent-plugins'
 import type { MarketDataAggregator } from '@vibe/core'
 import type { VaultWalletManager } from '@vibe/core/wallet'
 import { getMarketAggregator } from './market'
@@ -31,27 +32,48 @@ function sanitizeTemplate(t: { id: string; name: string; description: string; ic
   }
 }
 
-function loadAgentConfig(): OpenAIConfig | null {
+function loadAgentConfig(): LlmConfigFile | null {
   try {
     if (!existsSync(agentConfigPath)) return null
-    const raw = JSON.parse(readFileSync(agentConfigPath, 'utf8')) as OpenAIConfig
-    if (!raw.baseUrl || !raw.apiKey || !raw.model) return null
-    return raw
+    const raw = JSON.parse(readFileSync(agentConfigPath, 'utf8')) as
+      | LlmConfigFile
+      | OpenAIConfig
+    // New multi-provider format.
+    if (Array.isArray((raw as LlmConfigFile).providers)) {
+      return raw as LlmConfigFile
+    }
+    // Legacy single-config format: migrate to one provider.
+    const legacy = raw as OpenAIConfig
+    if (!legacy.baseUrl || !legacy.apiKey || !legacy.model) return null
+    return {
+      providers: [
+        {
+          id: 'default',
+          name: 'Default',
+          api: 'openai-completions',
+          baseUrl: legacy.baseUrl,
+          apiKey: legacy.apiKey,
+          models: [legacy.model],
+          model: legacy.model,
+          active: true,
+        },
+      ],
+    }
   } catch {
     return null
   }
 }
 
-function saveAgentConfig(config: OpenAIConfig | null): void {
+function saveAgentConfig(file: LlmConfigFile | null): void {
   try {
-    if (!config) {
+    if (!file || !Array.isArray(file.providers) || file.providers.length === 0) {
       if (existsSync(agentConfigPath)) {
         writeFileSync(agentConfigPath, '', { encoding: 'utf8', mode: 0o600 })
       }
       return
     }
     mkdirSync(dirname(agentConfigPath), { recursive: true })
-    writeFileSync(agentConfigPath, JSON.stringify(config, null, 2), {
+    writeFileSync(agentConfigPath, JSON.stringify(file, null, 2), {
       encoding: 'utf8',
       mode: 0o600,
     })
@@ -121,10 +143,12 @@ export async function setupAgentIpc(
     },
   })
 
-  // Restore the persisted LLM config, if any.
+  // Restore the persisted LLM providers (one active), if any. Saving it
+  // back also migrates a legacy single-config file to the new format.
   const saved = loadAgentConfig()
   if (saved) {
-    agentManager.setLlmConfig(saved)
+    agentManager.setProviders(saved)
+    saveAgentConfig(saved)
   }
 
   // Restore persisted agent instances (config, message history, timers).
@@ -221,16 +245,77 @@ export async function setupAgentIpc(
     return agentManager!.get(args.id)
   })
 
+  // --- Multi-provider LLM configuration ---
+
+  /** Mask keys before they reach the renderer: key bytes never leave main. */
+  const toProviderView = (p: LlmProviderConfig) => ({
+    id: p.id,
+    name: p.name,
+    api: p.api,
+    baseUrl: p.baseUrl,
+    models: p.models,
+    model: p.model,
+    active: p.active,
+    hasKey: p.apiKey.length > 0,
+  })
+
+  ipcMain.handle('agent:listProviders', () => agentManager!.listProviders().map(toProviderView))
+
+  ipcMain.handle(
+    'agent:saveProvider',
+    (_e, input: {
+      id?: string
+      name: string
+      api: LlmProviderConfig['api']
+      baseUrl: string
+      apiKey?: string
+      models: string[]
+      model: string
+      active?: boolean
+    }) => {
+      const saved = agentManager!.saveProvider(input)
+      saveAgentConfig({ providers: agentManager!.listProviders() })
+      return toProviderView(saved)
+    },
+  )
+
+  ipcMain.handle('agent:activateProvider', (_e, id: string) => {
+    agentManager!.activateProvider(String(id))
+    saveAgentConfig({ providers: agentManager!.listProviders() })
+    return agentManager!.listProviders().map(toProviderView)
+  })
+
+  ipcMain.handle('agent:removeProvider', (_e, id: string) => {
+    agentManager!.removeProvider(String(id))
+    saveAgentConfig({ providers: agentManager!.listProviders() })
+    return agentManager!.listProviders().map(toProviderView)
+  })
+
+  // Agent-level model override: this agent uses its own model, falling back
+  // to the active provider's default when cleared.
+  ipcMain.handle('agent:setAgentModel', (_e, args: { id: string; model: string }) => {
+    agentManager!.setAgentModel(String(args.id), String(args.model ?? ''))
+    return agentManager!.get(args.id)
+  })
+
   ipcMain.handle(
     'agent:setLlmConfig',
     (_e, config: OpenAIConfig | null) => {
       agentManager!.setLlmConfig(config)
-      saveAgentConfig(config)
+      saveAgentConfig({ providers: agentManager!.listProviders() })
       return { mode: agentManager!.getMode() }
     },
   )
 
   ipcMain.handle('agent:getLlmConfig', () => agentManager!.getLlmConfig())
+
+  // Switch the active provider's default model only: keep the stored base
+  // URL + API key untouched (the key is never sent back to the renderer).
+  ipcMain.handle('agent:setLlmModel', (_e, model: string) => {
+    agentManager!.setActiveModel(String(model).trim())
+    saveAgentConfig({ providers: agentManager!.listProviders() })
+    return agentManager!.getLlmConfig()
+  })
 
   // --- Chat (real conversation, LLM mode) ---
   ipcMain.handle('agent:chat', async (_e, args: { id: string; text: string }) => {

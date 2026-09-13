@@ -2,13 +2,13 @@
  * Settings view - configure wallets, API keys, and application settings.
  */
 
-import React, { useEffect, useState } from 'react'
-import { useAgentStore } from '../stores/agentStore'
+import React, { useCallback, useEffect, useState } from 'react'
+import { useAgentStore, type ProviderApi, type ProviderView } from '../stores/agentStore'
 import { useWalletStore } from '../stores/walletStore'
 import { useWindowStore } from '../components/95/windowStore'
 import { useUiStore, SCALE_LABEL, type UiScale } from '../stores/uiStore'
 
-type SettingsTab = 'general' | 'wallets' | 'exchanges' | 'risk' | 'models'
+type SettingsTab = 'general' | 'wallets' | 'models'
 
 /** Blockchain network switcher (Arc testnet / mainnet placeholders). */
 const NetworkSetting: React.FC = () => {
@@ -61,8 +61,6 @@ const Settings: React.FC = () => {
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'general', label: 'General', icon: '⚙️' },
     { id: 'wallets', label: 'Wallets', icon: '🔐' },
-    { id: 'exchanges', label: 'Exchanges', icon: '🏦' },
-    { id: 'risk', label: 'Risk Management', icon: '🛡️' },
     { id: 'models', label: 'AI Models', icon: '🧠' },
   ]
 
@@ -116,45 +114,6 @@ const Settings: React.FC = () => {
 
       case 'wallets':
         return <WalletsSettings />
-
-      case 'exchanges':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 500, fontSize: 13 }}>Exchange &amp; Data Source Keys</span>
-              <button
-                style={miniBtn}
-                onClick={() => useWindowStore.getState().openWindow('data-sources', 'Data Sources', '📡')}
-              >
-                Open Data Sources
-              </button>
-            </div>
-            <div style={{ border: '1px inset', borderColor: '#808080 #fff #fff #808080', background: '#fff', padding: 8, fontSize: 11, lineHeight: 1.6 }}>
-              API keys are stored locally in the main process and never leave this machine.
-              Configure each source (Robinhood, Yahoo, Binance, Arc…) from the <b>Data Sources</b>{' '}
-              window on the desktop. Binance stock data requires a user API key; others work
-              with public endpoints today.
-            </div>
-          </div>
-        )
-      case 'risk':
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-            <SettingRow label="Max Order Value" description="Maximum value per single order (USD)">
-              <input type="number" defaultValue="1000" style={{ ...ctl, width: 160, textAlign: 'right' }} />
-            </SettingRow>
-            <SettingRow label="Max Daily Volume" description="Maximum total trading volume per day (USD)">
-              <input type="number" defaultValue="5000" style={{ ...ctl, width: 160, textAlign: 'right' }} />
-            </SettingRow>
-            <SettingRow label="Max Drawdown" description="Stop trading if drawdown exceeds this">
-              <input type="number" defaultValue="20" style={{ ...ctl, width: 160, textAlign: 'right' }} />
-              <span style={{ color: 'var(--color-text-muted)' }}>%</span>
-            </SettingRow>
-            <SettingRow label="Require Human Approval" description="All trades must be approved by user">
-              <input type="checkbox" defaultChecked style={{ width: 18, height: 18 }} />
-            </SettingRow>
-          </div>
-        )
 
       case 'models':
         return <LlmSettings />
@@ -288,43 +247,103 @@ const SettingRow: React.FC<{
  * userData/agent-config.json (0600) and applied to the AgentManager.
  */
 const LlmSettings: React.FC = () => {
-  const { setLlmConfig, getLlmConfig, mode } = useAgentStore()
-  const [provider, setProvider] = useState<'openai' | 'ollama'>('openai')
-  const [baseUrl, setBaseUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [model, setModel] = useState('')
+  const { listProviders, saveProvider, activateProvider, removeProvider, getLlmConfig } = useAgentStore()
+  const api = window.vibeAPI.agent
+  const [providers, setProviders] = useState<ProviderView[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
-  const [ollamaModels, setOllamaModels] = useState<string[]>([])
-  const [ollamaError, setOllamaError] = useState('')
-  const [detecting, setDetecting] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<ProviderView | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null)
 
+  // New/edit form fields.
+  const [fName, setFName] = useState('OpenAI')
+  const [fApi, setFApi] = useState<ProviderApi>('openai-completions')
+  const [fBaseUrl, setFBaseUrl] = useState('https://api.openai.com/v1')
+  const [fApiKey, setFApiKey] = useState('')
+  const [fModels, setFModels] = useState('gpt-4o')
+  const [fModel, setFModel] = useState('gpt-4o')
+  const [fActive, setFActive] = useState(false)
+
+  const load = useCallback(async () => {
+    const list = await listProviders()
+    setProviders(list)
+    setLoaded(true)
+  }, [listProviders])
+
   useEffect(() => {
-    void (async () => {
-      const cfg = await getLlmConfig()
-      if (cfg) {
-        setBaseUrl(cfg.baseUrl)
-        setApiKey(cfg.apiKey)
-        setModel(cfg.model)
-        if (cfg.baseUrl.includes('11434')) setProvider('ollama')
-      }
-      setLoaded(true)
-    })()
-  }, [getLlmConfig])
+    void load()
+  }, [load])
+
+  /** Presets so international providers configure in one click. */
+  const PRESETS: { name: string; api: ProviderApi; baseUrl: string; models: string }[] = [
+    { name: 'OpenAI', api: 'openai-completions', baseUrl: 'https://api.openai.com/v1', models: 'gpt-4o, gpt-4o-mini' },
+    { name: 'Anthropic', api: 'anthropic-messages', baseUrl: 'https://api.anthropic.com', models: 'claude-sonnet-4-20250514, claude-opus-4-20250514' },
+    { name: 'Gemini', api: 'google-generative-ai', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', models: 'gemini-2.0-flash, gemini-2.5-pro' },
+    { name: 'DeepSeek', api: 'openai-completions', baseUrl: 'https://api.deepseek.com/v1', models: 'deepseek-chat, deepseek-reasoner' },
+    { name: 'Volcengine Ark', api: 'openai-completions', baseUrl: 'https://ark.cn-beijing.volces.com/api/plan/v3', models: 'ark-code-latest, deepseek-v3.1' },
+    { name: 'Ollama (local)', api: 'openai-completions', baseUrl: 'http://localhost:11434/v1', models: 'llama3.1, qwen2.5' },
+    { name: 'Custom', api: 'openai-completions', baseUrl: '', models: '' },
+  ]
+
+  const applyPreset = (name: string) => {
+    const p = PRESETS.find((x) => x.name === name) ?? PRESETS[PRESETS.length - 1]!
+    setFName(p.name)
+    setFApi(p.api)
+    setFBaseUrl(p.baseUrl)
+    setFModels(p.models)
+    setFModel(p.models.split(',')[0]?.trim() ?? '')
+  }
+
+  const openNew = () => {
+    setEditing(null)
+    setShowForm(true)
+    setFApiKey('')
+    applyPreset('OpenAI')
+    setFActive(providers.length === 0)
+    setMessage('')
+    setTestResult(null)
+  }
+
+  const openEdit = (p: ProviderView) => {
+    setEditing(p)
+    setShowForm(true)
+    setFName(p.name)
+    setFApi(p.api)
+    setFBaseUrl(p.baseUrl)
+    setFApiKey('')
+    setFModels(p.models.join(', '))
+    setFModel(p.model)
+    setFActive(p.active)
+    setMessage('')
+    setTestResult(null)
+  }
 
   const onSave = async () => {
     setSaving(true)
     setMessage('')
     try {
-      const result = await setLlmConfig({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), model: model.trim() })
+      const saved = await saveProvider({
+        id: editing?.id,
+        name: fName,
+        api: fApi,
+        baseUrl: fBaseUrl,
+        apiKey: fApiKey,
+        models: fModels.split(',').map((m) => m.trim()).filter(Boolean),
+        model: fModel.trim(),
+        active: fActive,
+      })
+      setShowForm(false)
+      setEditing(null)
+      setFApiKey('')
       setMessage(
-        result.mode === 'llm'
-          ? 'Saved. Agents now run in LLM mode.'
-          : 'Config missing fields - agents stay in rule mode.',
+        saved.active
+          ? `Saved - this provider is now active. Existing agents pick it up on their next run.`
+          : `Saved. Activate it to route agents through it.`,
       )
+      await load()
     } catch (e) {
       setMessage(`Failed: ${(e as Error).message}`)
     } finally {
@@ -332,218 +351,221 @@ const LlmSettings: React.FC = () => {
     }
   }
 
-  const onClear = async () => {
-    setSaving(true)
-    setMessage('')
+  const onActivate = async (id: string) => {
     try {
-      await setLlmConfig(null)
-      setBaseUrl('')
-      setApiKey('')
-      setModel('')
-      setProvider('openai')
-      setOllamaModels([])
-      setTestResult(null)
-      setMessage('Cleared. Agents run in deterministic rule mode.')
+      await activateProvider(id)
+      setMessage('Provider activated.')
+      await load()
     } catch (e) {
       setMessage(`Failed: ${(e as Error).message}`)
-    } finally {
-      setSaving(false)
     }
   }
 
-  const pickOllama = () => {
-    setProvider('ollama')
-    setBaseUrl('http://127.0.0.1:11434/v1')
-    setApiKey('')
-    setTestResult(null)
-    setOllamaError('')
-  }
-
-  const detectOllama = async () => {
-    setDetecting(true)
-    setOllamaError('')
+  const onRemove = async (p: ProviderView) => {
+    if (!window.confirm(`Remove provider "${p.name}"?`)) return
     try {
-      const res = await window.vibeAPI.agent.probeOllama()
-      if (!res.ok) {
-        setOllamaError(res.error ?? 'Ollama not reachable - is it running on 127.0.0.1:11434?')
-        setOllamaModels([])
-      } else {
-        setOllamaModels(res.models)
-        if (res.models.length > 0 && !res.models.includes(model)) {
-          setModel(res.models[0]!)
-        }
-      }
+      await removeProvider(p.id)
+      setMessage('Provider removed.')
+      await load()
     } catch (e) {
-      setOllamaError((e as Error).message)
-    } finally {
-      setDetecting(false)
+      setMessage(`Failed: ${(e as Error).message}`)
     }
   }
 
-  const testConnection = async () => {
+  const onTest = async () => {
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await window.vibeAPI.agent.testConnection({
-        baseUrl: baseUrl.trim(),
-        apiKey: apiKey.trim(),
-        model: model.trim(),
-      })
-      setTestResult(
-        res.ok
-          ? { ok: true, text: `Connected ✓ model replied: ${res.reply ?? ''}` }
-          : { ok: false, text: `Failed: ${res.error ?? 'unknown error'}` },
-      )
+      const cfg = await getLlmConfig()
+      if (!cfg) {
+        setTestResult({ ok: false, text: 'No active provider configured.' })
+        return
+      }
+      const r = await api.testConnection(cfg)
+      setTestResult({ ok: r.ok, text: r.ok ? (r.reply ?? 'Connected') : (r.error ?? 'Failed') })
     } catch (e) {
-      setTestResult({ ok: false, text: `Failed: ${(e as Error).message}` })
+      setTestResult({ ok: false, text: (e as Error).message })
     } finally {
       setTesting(false)
     }
   }
 
-  if (!loaded) {
-    return <p style={{ color: 'var(--color-text-muted)' }}>Loading…</p>
-  }
-
-  const input: React.CSSProperties = {
-    width: 320,
-    fontFamily: 'monospace',
-    padding: '3px 6px',
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
     fontSize: 11,
-    border: '2px inset',
-    borderColor: '#808080 #fff #fff #808080',
+    fontFamily: 'inherit',
     background: '#fff',
     color: '#000',
-    caretColor: '#000',
+    border: '2px inset',
+    borderColor: '#808080 #fff #fff #808080',
+    padding: '3px 5px',
   }
-  const miniBtn: React.CSSProperties = {
-    padding: '3px 10px',
+  const btn: React.CSSProperties = {
     fontSize: 11,
     background: '#c0c0c0',
     border: '2px outset',
     borderColor: '#fff #808080 #808080 #fff',
+    padding: '3px 10px',
     cursor: 'pointer',
+    color: '#000',
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 560 }}>
-      <div
-        style={{
-          border: '2px outset',
-          borderColor: '#fff #808080 #808080 #fff',
-          background: '#c0c0c0',
-          padding: '4px 8px',
-          fontSize: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <span>{mode === 'llm' ? '⚡ LLM mode active' : '⏸ Rule mode (no LLM key)'}</span>
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 10, color: '#333' }}>
-          Any OpenAI-compatible endpoint · Ollama local supported
-        </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+        Keep several providers (OpenAI, Anthropic, Gemini, DeepSeek, Ollama…) with their own keys.
+        Only <b>one is active</b> at a time - agents use the active provider, and each agent can
+        pick its own model. Keys stay in the main process and are never shown here again.
       </div>
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Provider</span>
-        <button
-          style={{ ...miniBtn, fontWeight: provider === 'openai' ? 700 : 400 }}
-          onClick={() => { setProvider('openai'); setTestResult(null) }}
+      {providers.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            border: '2px outset',
+            borderColor: '#fff #808080 #808080 #fff',
+            background: p.active ? '#ffffe0' : '#c0c0c0',
+            padding: 6,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
         >
-          OpenAI-compatible
-        </button>
-        <button
-          style={{ ...miniBtn, fontWeight: provider === 'ollama' ? 700 : 400 }}
-          onClick={pickOllama}
-        >
-          Ollama (local)
-        </button>
-      </div>
+          <input
+            type="radio"
+            checked={p.active}
+            onChange={() => void onActivate(p.id)}
+            title="Set as active provider"
+            style={{ width: 14, height: 14, cursor: 'pointer' }}
+          />
+          <span style={{ fontWeight: 'bold', fontSize: 12, color: '#000' }}>{p.name}</span>
+          {p.active && <span style={{ fontSize: 10, color: '#000080', fontWeight: 'bold' }}>ACTIVE</span>}
+          <span style={{ fontSize: 10, color: '#333', fontFamily: 'monospace' }}>{p.api}</span>
+          <span style={{ fontSize: 10, color: '#333', fontFamily: 'monospace', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {p.baseUrl}
+          </span>
+          <span style={{ fontSize: 10, color: '#333' }}>
+            {p.hasKey ? 'key saved' : 'no key'} · default <b>{p.model}</b>
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+            <button style={btn} onClick={() => openEdit(p)}>Edit</button>
+            <button style={btn} onClick={() => void onRemove(p)}>Remove</button>
+          </span>
+        </div>
+      ))}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Base URL</span>
-        <input
-          type="text"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://api.openai.com/v1"
-          style={input}
-        />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>API Key</span>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder={provider === 'ollama' ? 'not needed for local Ollama' : 'sk-...'}
-          style={input}
-        />
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Model</span>
-        <input
-          type="text"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="gpt-4o-mini / deepseek-chat / llama3.2"
-          style={input}
-        />
-        {provider === 'ollama' && (
-          <button style={miniBtn} onClick={() => void detectOllama()} disabled={detecting}>
-            {detecting ? 'Detecting…' : 'Detect local models'}
-          </button>
-        )}
-      </div>
-
-      {provider === 'ollama' && ollamaModels.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Pick model</span>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            style={{ ...input, width: 320 }}
-          >
-            {ollamaModels.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+      {providers.length === 0 && !showForm && (
+        <div style={{ fontSize: 11, color: '#333' }}>
+          No provider yet - add one (e.g. Gemini, Anthropic, DeepSeek or your local Ollama).
         </div>
       )}
-      {ollamaError && <div style={{ fontSize: 10, color: '#a00' }}>{ollamaError}</div>}
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, width: 90 }}>Verify</span>
-        <button style={miniBtn} onClick={() => void testConnection()} disabled={testing}>
-          {testing ? 'Testing…' : 'Test connection'}
-        </button>
-        {testResult && (
-          <span style={{ fontSize: 10, color: testResult.ok ? '#008000' : '#a00' }}>
-            {testResult.text}
-          </span>
+      {showForm && (
+        <div style={{ border: '2px inset', borderColor: '#808080 #fff #fff #808080', background: '#fff', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 'bold', color: '#000' }}>
+            {editing ? `Edit provider - ${editing.name}` : 'Add provider'}
+          </div>
+          {!editing && (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#000', width: 90 }}>Preset</span>
+              <select
+                value={fName}
+                onChange={(e) => applyPreset(e.target.value)}
+                style={{ ...inputStyle, width: 220 }}
+              >
+                {PRESETS.map((p) => (
+                  <option key={p.name} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>Name</span>
+            <input value={fName} onChange={(e) => setFName(e.target.value)} style={{ ...inputStyle, width: 220 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>API</span>
+            <select
+              value={fApi}
+              onChange={(e) => setFApi(e.target.value as ProviderApi)}
+              style={{ ...inputStyle, width: 220 }}
+            >
+              <option value="openai-completions">OpenAI-compatible (also Ollama)</option>
+              <option value="anthropic-messages">Anthropic Messages</option>
+              <option value="google-generative-ai">Google Gemini</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>Base URL</span>
+            <input
+              value={fBaseUrl}
+              onChange={(e) => setFBaseUrl(e.target.value)}
+              placeholder="https://…"
+              style={{ ...inputStyle, width: 220 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>API key</span>
+            <input
+              type="password"
+              value={fApiKey}
+              onChange={(e) => setFApiKey(e.target.value)}
+              placeholder={editing ? 'Leave empty to keep the saved key' : 'sk-…'}
+              style={{ ...inputStyle, width: 220 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>Models</span>
+            <input
+              value={fModels}
+              onChange={(e) => setFModels(e.target.value)}
+              placeholder="comma separated, e.g. gpt-4o, gpt-4o-mini"
+              style={{ ...inputStyle, width: 220 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>Default model</span>
+            <input
+              value={fModel}
+              onChange={(e) => setFModel(e.target.value)}
+              placeholder="default for this provider"
+              style={{ ...inputStyle, width: 220 }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#000', width: 90 }}>Activate</span>
+            <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} style={{ width: 16, height: 16 }} />
+            <span style={{ fontSize: 10, color: '#333' }}>Route agents through this provider now</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+            <button style={btn} disabled={saving} onClick={() => void onSave()}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button style={btn} onClick={() => { setShowForm(false); setEditing(null); setMessage(''); }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+        {!showForm && (
+          <button style={btn} onClick={openNew}>Add provider</button>
         )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-        <button
-          onClick={() => void onSave()}
-          disabled={saving}
-          style={{ ...miniBtn, fontWeight: 700, padding: '4px 16px' }}
-        >
-          {saving ? 'Saving…' : 'Save'}
+        <button style={btn} disabled={testing || providers.length === 0} onClick={() => void onTest()}>
+          {testing ? 'Testing…' : 'Test active provider'}
         </button>
-        <button onClick={() => void onClear()} disabled={saving} style={{ ...miniBtn, color: '#a00' }}>
-          Clear
-        </button>
-        {message && <span style={{ fontSize: 10, color: '#333', alignSelf: 'center' }}>{message}</span>}
+        {message && <span style={{ fontSize: 10, color: '#333' }}>{message}</span>}
+        {testResult && (
+          <span style={{ fontSize: 10, color: testResult.ok ? '#006600' : '#990000' }}>{testResult.text}</span>
+        )}
       </div>
     </div>
   )
 }
+
 
 
 const miniBtn: React.CSSProperties = {

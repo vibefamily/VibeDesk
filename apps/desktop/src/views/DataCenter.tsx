@@ -11,7 +11,6 @@ import React, { useState } from 'react'
 import StockTokens from './StockTokens'
 import InfoCenter from './InfoCenter'
 import DataSources from './DataSources'
-import TradeRun from './TradeRun'
 
 interface TabDef {
   key: string
@@ -21,7 +20,6 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { key: 'markets', label: 'Markets', component: StockTokens },
-  { key: 'trade-run', label: 'Trade Run', component: TradeRun },
   { key: 'news', label: 'News', component: InfoCenter },
   { key: 'sources', label: 'Sources', component: DataSources },
 ]
