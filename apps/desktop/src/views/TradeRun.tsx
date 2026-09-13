@@ -108,6 +108,15 @@ interface ChatMsg {
   role: 'user' | 'agent' | 'system'
   content: string
   at: number
+  id?: string
+  thinking?: string
+}
+
+/** True when the newest bubble is the agent reply being streamed right now
+ *  (in that case we show the growing bubble instead of a typing hint). */
+function isStreamingLast(messages: { role?: string; content: string }[]): boolean {
+  const last = messages[messages.length - 1]
+  return !!last && last.role === 'agent' && last.content.length > 0
 }
 
 /** Parse "buy 0.01 btc" / "sell 2 eth" from a chat line. */
@@ -126,6 +135,22 @@ const TradeRun: React.FC = () => {
   const wallets = useWalletStore((s) => s.wallets)
   const authorized = useWalletStore((s) => s.authorized)
   const refreshWallets = useWalletStore((s) => s.refresh)
+
+  // Keep this session live: apply main-process events so streamed replies
+  // (stream_delta / thinking_delta) show up in real time instead of a
+  // single all-at-once bubble.
+  useEffect(() => {
+    const handler = (event: unknown) => {
+      useAgentStore.getState().applyEvent(
+        event as Parameters<ReturnType<typeof useAgentStore.getState>['applyEvent']>[0],
+      )
+    }
+    const unsubscribe = window.vibeAPI.on('agent:event', handler)
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe()
+      else window.vibeAPI.off('agent:event', handler)
+    }
+  }, [])
 
   const [agentId, setAgentId] = useState('')
   // The Trade Agent window is bound to its own dedicated agent (named
@@ -353,9 +378,9 @@ const TradeRun: React.FC = () => {
     setSending(true)
     setChatInput('')
     if (inputRef.current) inputRef.current.value = ''
-    const userMsg: ChatMsg = { role: 'user', content: text, at: Date.now() }
-    setChatMsgs((prev) => [...prev, userMsg])
-
+    // The user line and the streamed agent reply are pushed by the main
+    // process and rendered from store.messages, so the reply bubble updates
+    // token-by-token instead of appearing all at once.
     const intent = parseIntent(text)
     let execMsg: ChatMsg | null = null
     if (intent) {
@@ -372,16 +397,11 @@ const TradeRun: React.FC = () => {
     }
     if (execMsg) setChatMsgs((prev) => [...prev, execMsg!])
 
-    // Stream the agent's reply.
-    const t0 = Date.now()
+    // Send the message; the streamed reply arrives over agent:event and is
+    // rendered live from store.messages.
     const live = useAgentStore.getState().chat
     try {
       await live(selected.id, text)
-      const final = useAgentStore.getState().agents.find((a) => a.id === selected.id)
-      const reply = final?.lastMessage
-      if (reply) {
-        setChatMsgs((prev) => [...prev, { role: 'agent', content: reply, at: Date.now() }])
-      }
     } catch {
       setChatMsgs((prev) => [
         ...prev,
@@ -402,14 +422,28 @@ const TradeRun: React.FC = () => {
         ])
       }
     }
-    void (t0 && undefined)
     sendingRef.current = false
     setSending(false)
   }
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMsgs])
+  }, [chatMsgs, selected?.messages.length])
+
+  // Render the conversation from the agent's live message list (user lines
+  // and streamed agent replies) plus local system notes (intent hints and
+  // execution results), ordered by timestamp.
+  const storeMsgs: ChatMsg[] = (selected?.messages ?? [])
+    .filter((m) => m.role === 'user' || m.role === 'agent' || m.kind === 'error' || m.kind === 'step')
+    .map((m) => ({
+      role: m.role === 'user' ? 'user' : m.role === 'agent' ? 'agent' : 'system',
+      content: m.content,
+      at: m.at ?? Date.now(),
+      id: m.id,
+      thinking: m.thinking,
+    }))
+  const allChatMsgs = [...storeMsgs, ...chatMsgs].sort((a, b) => a.at - b.at)
+  const streaming = sending && !isStreamingLast(storeMsgs)
 
   const feedTabItems = feedItems.filter((i) => i.kind === feedTab)
 
@@ -789,20 +823,54 @@ const TradeRun: React.FC = () => {
                 minHeight: 0,
               }}
             >
-              {chatMsgs.map((m, i) => (
+              {streaming && (
+                <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic' }}>
+                  {selected?.name ?? 'Agent'} is thinking…
+                </div>
+              )}
+              {allChatMsgs.map((m, i) => (
                 <div
-                  key={i}
+                  key={m.id ?? i}
                   style={{
-                    fontSize: 11,
-                    color: m.role === 'system' ? '#555' : '#000',
-                    userSelect: 'text',
-                    WebkitUserSelect: 'text',
+                    display: 'flex',
+                    justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
                   }}
                 >
-                  {m.role === 'user' && <b style={{ color: '#000080' }}>You: </b>}
-                  {m.role === 'agent' && <b style={{ color: '#006' }}>Agent: </b>}
-                  {m.role === 'system' && <i>• </i>}
-                  <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                  <span
+                    style={{
+                      maxWidth: '92%',
+                      fontSize: 11,
+                      color: m.role === 'system' ? '#555' : '#000',
+                      background: m.role === 'user' ? '#c0c0c0' : '#e5e5e5',
+                      border: '2px outset',
+                      borderColor: '#fff #808080 #808080 #fff',
+                      padding: '4px 6px',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      userSelect: 'text',
+                      WebkitUserSelect: 'text',
+                    }}
+                  >
+                    {m.role === 'system' && <i>• </i>}
+                    {m.thinking ? (
+                      <span
+                        style={{
+                          display: 'block',
+                          fontSize: 10,
+                          color: '#666',
+                          fontStyle: 'italic',
+                          borderBottom: '1px dotted #aaa',
+                          marginBottom: 3,
+                          paddingBottom: 3,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {m.thinking}
+                      </span>
+                    ) : null}
+                    {m.content}
+                  </span>
                 </div>
               ))}
               <div ref={chatEndRef} />
