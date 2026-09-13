@@ -44,7 +44,7 @@ function createWindow() {
   // immersive hiddenInset variant (custom drag strip) was removed -
   // it repeatedly broke maximized window buttons and app dragging.
   win = new BrowserWindow({
-    title: 'Vibe - AI Trading Agent',
+    title: 'VibeDesk — Your Local Trading Agent OS',
     width: 1400,
     height: 900,
     minWidth: 1024,

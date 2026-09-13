@@ -130,6 +130,27 @@ export async function setupAgentIpc(
   // Restore persisted agent instances (config, message history, timers).
   agentManager.restoreAll()
 
+  // Seed the two default desktop agents (idempotent): Trade Agent and
+  // Chat Agent. They power the "Trade Agent" / "Chat Agent" shortcuts on
+  // the home desktop (order: wallet, data, trade, chat). If an agent of
+  // the same template already exists (e.g. user's own General Chat),
+  // pin its shortcut instead of creating a duplicate.
+  const ensureDesktopAgent = (templateId: string, fallbackName: string) => {
+    if (!agentManager) return
+    const existing = agentManager.list().find((a) => a.templateId === templateId)
+    if (existing) {
+      if (!existing.desktopIcon) agentManager.setDesktopIcon(existing.id, true)
+      return
+    }
+    agentManager.create(templateId, {
+      name: fallbackName,
+      symbols: templateId === 'stock-analyst' ? ['TSLA', 'NVDA'] : undefined,
+      desktopIcon: true,
+    })
+  }
+  ensureDesktopAgent('stock-analyst', 'Trade Agent')
+  ensureDesktopAgent('general-chat', 'Chat Agent')
+
   ipcMain.handle('agent:listDataSources', () => {
     return market.listProviders().map((p) => p.id)
   })

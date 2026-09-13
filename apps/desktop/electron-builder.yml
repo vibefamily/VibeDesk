@@ -1,5 +1,5 @@
 appId: com.vibe.trading
-productName: Vibe
+productName: VibeDesk
 directories:
   output: release/${version}
 files:

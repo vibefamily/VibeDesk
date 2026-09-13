@@ -108,7 +108,7 @@ const AgentChat: React.FC = () => {
       >
         <span style={{ fontSize: 'var(--font-xl)' }}>🤖</span>
         <div>
-          <h2 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>AI Trading Agent</h2>
+          <h2 style={{ margin: 0, fontSize: 'var(--font-lg)' }}>VibeDesk Agent</h2>
           <p style={{ margin: 0, fontSize: 'var(--font-sm)', color: 'var(--color-text-secondary)' }}>
             Ask me anything about markets, strategies, or your portfolio
           </p>

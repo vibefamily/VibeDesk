@@ -339,6 +339,20 @@ export class AgentManager {
     return view
   }
 
+  /**
+   * Show or hide an agent's shortcut on the VibeDesk home desktop
+   * (used by the desktop seeder to keep Trade Agent / Chat Agent pinned).
+   */
+  setDesktopIcon(id: string, desktopIcon: boolean): AgentInstanceView {
+    const inst = this.agents.get(id)
+    if (!inst) {
+      throw new Error(`Unknown agent: ${id}`)
+    }
+    inst.view = { ...inst.view, desktopIcon }
+    this.persist(id)
+    return inst.view
+  }
+
   private buildAgent(managed: ManagedAgent): Agent | PiAgent {
     const { template, view } = managed
     const config: AgentConfig = template.buildConfig(view.id, view.name, this.llmProvider!.getConfig().model)
